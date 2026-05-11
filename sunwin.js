@@ -5981,7 +5981,7 @@ app.get('/taixiu', async (req, res) => {
     const stats = calculateDetailedStats();
 
     res.json({
-      copyright: "@vua_lọ_VN",
+      copyright: "@vualovn",
       thong_tin_phien_truoc: {
         id: current.phien,
         ket_qua: current.result === 'Tài' ? 'TAI' : 'XIU',
@@ -5991,10 +5991,10 @@ app.get('/taixiu', async (req, res) => {
         phien_tiep_theo: nextPhien,
         ket_qua: vipKetQua,
         ti_le_tin_cay: `${vipTinCay}%`,
-        thuat_toan_hoat_dong: "113 Modules + MD5 Python + 1000+ Dynamic Patterns"
+        thuat_toan_hoat_dong: "API MÚP NHƯ EM TRẦN HÀ LINH"
       },
       chi_tiet_md5: { entropy: "0.000", energy: 0, density: "0.000" },
-      thong_ke_bu_lon_sunwin: stats
+      thong_ke_hoc_tap_sunwin: stats,
       // Giữ lại các trường cũ nếu cần
       phien_du_doan: nextPhien,
       du_doan: prediction,

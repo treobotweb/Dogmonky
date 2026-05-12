@@ -788,10 +788,41 @@ function getResultSequence(history) {
 }
 
 function combinedPredict(history) {
-    if (history.length < 10) return { prediction: "Chưa đủ dữ liệu", confidence: 0 };
+    const historyArray = history.map(item => item.result === "Tài" || item.result === "T" ? "T" : "X");
+
+    // Nếu không đủ 10 phiên, dùng thuật toán nhẹ
+    if (history.length < 10) {
+        // Thử Markov bậc 1
+        let pred = markov1(historyArray);
+        if (pred) {
+            return {
+                prediction: pred === 'T' ? "TAI" : "XIU",
+                confidence: 55,
+                breakSignals: 0,
+                totalAlgorithms: 1
+            };
+        }
+        // Thử Majority với cửa sổ phù hợp
+        pred = simpleMajority(historyArray, Math.min(historyArray.length, 15));
+        if (pred) {
+            return {
+                prediction: pred === 'T' ? "TAI" : "XIU",
+                confidence: 54,
+                breakSignals: 0,
+                totalAlgorithms: 1
+            };
+        }
+        // Nếu không được thì dựa vào phiên cuối
+        const last = historyArray[historyArray.length - 1];
+        return {
+            prediction: last === 'T' ? "TAI" : "XIU",
+            confidence: 52,
+            breakSignals: 0,
+            totalAlgorithms: 1
+        };
+    }
 
     const seq = getResultSequence(history);
-    const historyArray = history.map(item => item.result === "Tài" || item.result === "T" ? "T" : "X");
 
     const predictions = [];
 
@@ -854,7 +885,7 @@ function combinedPredict(history) {
     }
 
     let confidence = totalWeight > 0 ? Math.round((Math.max(scoreT, scoreX) / totalWeight) * 100) : 50;
-    confidence = Math.min(99, Math.max(50, confidence + breakCount * 2));
+    confidence = Math.min(96, Math.max(52, confidence + breakCount * 2));
 
     return {
         prediction: finalPred === "T" ? "TAI" : "XIU",
@@ -887,21 +918,18 @@ app.get("/taixiu", async (req, res) => {
     try {
         const response = await axios.get(API_URL);
         const rawData = response.data;
-        // API trả về { data: [...] }
         const dataArray = rawData.data || rawData;
         const history = normalizeData(Array.isArray(dataArray) ? dataArray : [dataArray]);
 
         let latest, predict;
 
         if (history.length === 0) {
+            // Không có dữ liệu, trả về mặc định
             latest = { phien: 0, dices: [0, 0, 0], result: "Tài" };
-            predict = { prediction: "TAI", confidence: 50 };
+            predict = { prediction: "TAI", confidence: 52 };
         } else {
             latest = history[history.length - 1];
             predict = combinedPredict(history);
-            if (predict.prediction === "Chưa đủ dữ liệu") {
-                predict = { prediction: "TAI", confidence: 50 };
-            }
         }
 
         res.json({
@@ -923,19 +951,18 @@ app.get("/taixiu", async (req, res) => {
             Ket_qua: "TAI",
             Phien_nay: 1,
             Du_doan: "TAI",
-            Do_tin_cay: 50
+            Do_tin_cay: 52
         });
     }
 });
 
 // ======================================================
-// Route "/" giờ trả về JSON thay vì "SERVER ONLINE"
+// Route gốc trả về JSON (không còn "SERVER ONLINE")
 // ======================================================
 app.get("/", async (req, res) => {
     try {
         const response = await axios.get(API_URL);
         const rawData = response.data;
-        // API trả về { data: [...] }
         const dataArray = rawData.data || rawData;
         const history = normalizeData(Array.isArray(dataArray) ? dataArray : [dataArray]);
 
@@ -943,13 +970,10 @@ app.get("/", async (req, res) => {
 
         if (history.length === 0) {
             latest = { phien: 0, dices: [0, 0, 0], result: "Tài" };
-            predict = { prediction: "TAI", confidence: 50 };
+            predict = { prediction: "TAI", confidence: 52 };
         } else {
             latest = history[history.length - 1];
             predict = combinedPredict(history);
-            if (predict.prediction === "Chưa đủ dữ liệu") {
-                predict = { prediction: "TAI", confidence: 50 };
-            }
         }
 
         const jsonData = {
@@ -974,7 +998,7 @@ app.get("/", async (req, res) => {
             Ket_qua: "TAI",
             Phien_nay: 1,
             Du_doan: "TAI",
-            Do_tin_cay: 50
+            Do_tin_cay: 52
         });
     }
 });

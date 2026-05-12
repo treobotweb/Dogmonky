@@ -1,6026 +1,832 @@
-const express = require('express');
-const axios = require('axios');
+const express = require("express");
+const axios = require("axios");
 
 const app = express();
-app.use(express.json());
-
-// ======================================================
-// CONFIG
-// ======================================================
-
-const API_URL = 'https://sunlol-zv7x.onrender.com/api/history';
-const CACHE_TTL = 10000;
-
-// ======================================================
-// PATTERN TABLE FULL (giữ nguyên từ thuattoan8.txt)
-// ======================================================
-
-const PATTERN_TABLE = {
-  "TXXTTXTX": "Xỉu",
-  "XXTTXTXX": "Tài",
-  "XTTXTXXT": "Tài",
-  "TTXTXXTT": "Tài",
-  "TXTXXTTT": "Xỉu",
-  "XTXXTTTX": "Xỉu",
-  "TXXTTTXX": "Tài",
-  "XXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Xỉu",
-  "TXXTXXXX": "Xỉu",
-  "XXTXXXXX": "Tài",
-  "XTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Xỉu",
-  "XXXXXTXX": "Xỉu",
-  "XXXXTXXX": "Tài",
-  "XXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Xỉu",
-  "XTXXXTXX": "Xỉu",
-  "TXXXTXXX": "Tài",
-  "XXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Xỉu",
-  "XTXXXTXX": "Xỉu",
-  "TXXXTXXX": "Xỉu",
-  "XXXTXXXX": "Tài",
-  "XXTXXXXT": "Tài",
-  "XTXXXXTT": "Xỉu",
-  "TXXXXTTX": "Xỉu",
-  "XXXXTTXX": "Xỉu",
-  "XXXTTXXX": "Tài",
-  "XXTTXXXT": "Xỉu",
-  "XTTXXXTX": "Tài",
-  "TTXXXTXT": "Xỉu",
-  "TXXXTXTX": "Tài",
-  "XXXTXTXT": "Tài",
-  "XXTXTXTT": "Tài",
-  "XTXTXTTT": "Tài",
-  "TXTXTTTT": "Tài",
-  "XTXTTTTT": "Tài",
-  "TXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Tài",
-  "TTTTTTXT": "Xỉu",
-  "TTTTTXTX": "Tài",
-  "TTTTXTXT": "Tài",
-  "TTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Tài",
-  "TXTXTTXT": "Xỉu",
-  "XTXTTXTX": "Tài",
-  "TXTTXTXT": "Tài",
-  "XTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Tài",
-  "TXTXTTXT": "Xỉu",
-  "XTXTTXTX": "Xỉu",
-  "TXTTXTXX": "Xỉu",
-  "XTTXTXXX": "Tài",
-  "TTXTXXXT": "Tài",
-  "TXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Xỉu",
-  "TXXXTTXX": "Tài",
-  "XXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Xỉu",
-  "XTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Tài",
-  "TXXTXXXT": "Tài",
-  "XXTXXXTT": "Tài",
-  "XTXXXTTT": "Tài",
-  "TXXXTTTT": "Tài",
-  "XXXTTTTT": "Tài",
-  "XXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Tài",
-  "TTTTXXXT": "Xỉu",
-  "TTTXXXTX": "Tài",
-  "TTXXXTXT": "Tài",
-  "TXXXTXTT": "Xỉu",
-  "XXXTXTTX": "Xỉu",
-  "XXTXTTXX": "Tài",
-  "XTXTTXXT": "Tài",
-  "TXTTXXTT": "Tài",
-  "XTTXXTTT": "Xỉu",
-  "TTXXTTTX": "Tài",
-  "TXXTTTXT": "Xỉu",
-  "XXTTTXTX": "Xỉu",
-  "XTTTXTXX": "Xỉu",
-  "TTTXTXXX": "Tài",
-  "TTXTXXXT": "Tài",
-  "TXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Xỉu",
-  "TXXXTTXX": "Xỉu",
-  "XXXTTXXX": "Tài",
-  "XXTTXXXT": "Xỉu",
-  "XTTXXXTX": "Tài",
-  "TTXXXTXT": "Tài",
-  "TXXXTXTT": "Xỉu",
-  "XXXTXTTX": "Xỉu",
-  "XXTXTTXX": "Xỉu",
-  "XTXTTXXX": "Tài",
-  "TXTTXXXT": "Xỉu",
-  "XTTXXXTX": "Xỉu",
-  "TTXXXTXX": "Tài",
-  "TXXXTXXT": "Xỉu",
-  "XXXTXXTX": "Tài",
-  "XXTXXTXT": "Xỉu",
-  "XTXXTXTX": "Tài",
-  "TXXTXTXT": "Tài",
-  "XXTXTXTT": "Xỉu",
-  "XTXTXTTX": "Tài",
-  "TXTXTTXT": "Tài",
-  "XTXTTXTT": "Tài",
-  "TXTTXTTT": "Xỉu",
-  "XTTXTTTX": "Tài",
-  "TTXTTTXT": "Tài",
-  "TXTTTXTT": "Xỉu",
-  "XTTTXTTX": "Tài",
-  "TTTXTTXT": "Xỉu",
-  "TTXTTXTX": "Xỉu",
-  "TXTTXTXX": "Tài",
-  "XTTXTXXT": "Xỉu",
-  "TTXTXXTX": "Tài",
-  "TXTXXTXT": "Tài",
-  "XTXXTXTT": "Tài",
-  "TXXTXTTT": "Tài",
-  "XXTXTTTT": "Tài",
-  "XTXTTTTT": "Xỉu",
-  "TXTTTTTX": "Xỉu",
-  "XTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Xỉu",
-  "TTXXXXXX": "Tài",
-  "TXXXXXXT": "Tài",
-  "XXXXXXTT": "Xỉu",
-  "XXXXXTTX": "Xỉu",
-  "XXXXTTXX": "Tài",
-  "XXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Tài",
-  "XTTXXTXT": "Tài",
-  "TTXXTXTT": "Tài",
-  "TXXTXTTT": "Tài",
-  "XXTXTTTT": "Xỉu",
-  "XTXTTTTX": "Tài",
-  "TXTTTTXT": "Xỉu",
-  "XTTTTXTX": "Xỉu",
-  "TTTTXTXX": "Tài",
-  "TTTXTXXT": "Xỉu",
-  "TTXTXXTX": "Tài",
-  "TXTXXTXT": "Xỉu",
-  "XTXXTXTX": "Tài",
-  "TXXTXTXT": "Tài",
-  "XXTXTXTT": "Tài",
-  "XTXTXTTT": "Xỉu",
-  "TXTXTTTX": "Xỉu",
-  "XTXTTTXX": "Tài",
-  "TXTTTXXT": "Tài",
-  "XTTTXXTT": "Tài",
-  "TTTXXTTT": "Tài",
-  "TTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Tài",
-  "XXTTTTXT": "Xỉu",
-  "XTTTTXTX": "Tài",
-  "TTTTXTXT": "Tài",
-  "TTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Xỉu",
-  "TXTXTTXX": "Xỉu",
-  "XTXTTXXX": "Xỉu",
-  "TXTTXXXX": "Tài",
-  "XTTXXXXT": "Xỉu",
-  "TTXXXXTX": "Tài",
-  "TXXXXTXT": "Xỉu",
-  "XXXXTXTX": "Tài",
-  "XXXTXTXT": "Tài",
-  "XXTXTXTT": "Tài",
-  "XTXTXTTT": "Tài",
-  "TXTXTTTT": "Xỉu",
-  "XTXTTTTX": "Xỉu",
-  "TXTTTTXX": "Tài",
-  "XTTTTXXT": "Xỉu",
-  "TTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Tài",
-  "TXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Xỉu",
-  "XTXXXTXX": "Tài",
-  "TXXXTXXT": "Tài",
-  "XXXTXXTT": "Tài",
-  "XXTXXTTT": "Xỉu",
-  "XTXXTTTX": "Tài",
-  "TXXTTTXT": "Tài",
-  "XXTTTXTT": "Xỉu",
-  "XTTTXTTX": "Xỉu",
-  "TTTXTTXX": "Xỉu",
-  "TTXTTXXX": "Xỉu",
-  "TXTTXXXX": "Xỉu",
-  "XTTXXXXX": "Tài",
-  "TTXXXXXT": "Tài",
-  "TXXXXXTT": "Tài",
-  "XXXXXTTT": "Tài",
-  "XXXXTTTT": "Xỉu",
-  "XXXTTTTX": "Tài",
-  "XXTTTTXT": "Xỉu",
-  "XTTTTXTX": "Tài",
-  "TTTTXTXT": "Tài",
-  "TTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Tài",
-  "TXTXTTXT": "Xỉu",
-  "XTXTTXTX": "Tài",
-  "TXTTXTXT": "Xỉu",
-  "XTTXTXTX": "Tài",
-  "TTXTXTXT": "Xỉu",
-  "TXTXTXTX": "Tài",
-  "XTXTXTXT": "Xỉu",
-  "TXTXTXTX": "Tài",
-  "XTXTXTXT": "Xỉu",
-  "TXTXTXTX": "Xỉu",
-  "XTXTXTXX": "Tài",
-  "TXTXTXXT": "Xỉu",
-  "XTXTXXTX": "Tài",
-  "TXTXXTXT": "Xỉu",
-  "XTXXTXTX": "Tài",
-  "TXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Tài",
-  "XTXTXTXT": "Tài",
-  "TXTXTXTT": "Tài",
-  "XTXTXTTT": "Xỉu",
-  "TXTXTTTX": "Xỉu",
-  "XTXTTTXX": "Xỉu",
-  "TXTTTXXX": "Xỉu",
-  "XTTTXXXX": "Tài",
-  "TTTXXXXT": "Tài",
-  "TTXXXXTT": "Xỉu",
-  "TXXXXTTX": "Xỉu",
-  "XXXXTTXX": "Xỉu",
-  "XXXTTXXX": "Tài",
-  "XXTTXXXT": "Xỉu",
-  "XTTXXXTX": "Tài",
-  "TTXXXTXT": "Xỉu",
-  "TXXXTXTX": "Xỉu",
-  "XXXTXTXX": "Xỉu",
-  "XXTXTXXX": "Tài",
-  "XTXTXXXT": "Tài",
-  "TXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Xỉu",
-  "TXXXTTXX": "Tài",
-  "XXXTTXXT": "Tài",
-  "XXTTXXTT": "Tài",
-  "XTTXXTTT": "Tài",
-  "TTXXTTTT": "Tài",
-  "TXXTTTTT": "Tài",
-  "XXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Tài",
-  "TTTTTTXT": "Tài",
-  "TTTTTXTT": "Tài",
-  "TTTTXTTT": "Tài",
-  "TTTXTTTT": "Xỉu",
-  "TTXTTTTX": "Tài",
-  "TXTTTTXT": "Xỉu",
-  "XTTTTXTX": "Xỉu",
-  "TTTTXTXX": "Tài",
-  "TTTXTXXT": "Tài",
-  "TTXTXXTT": "Tài",
-  "TXTXXTTT": "Tài",
-  "XTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Tài",
-  "XXTTTTXT": "Tài",
-  "XTTTTXTT": "Tài",
-  "TTTTXTTT": "Tài",
-  "TTTXTTTT": "Xỉu",
-  "TTXTTTTX": "Xỉu",
-  "TXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Tài",
-  "TTTXXXXT": "Tài",
-  "TTXXXXTT": "Tài",
-  "TXXXXTTT": "Xỉu",
-  "XXXXTTTX": "Xỉu",
-  "XXXTTTXX": "Tài",
-  "XXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Tài",
-  "TXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Xỉu",
-  "XTXXXTXX": "Tài",
-  "TXXXTXXT": "Xỉu",
-  "XXXTXXTX": "Tài",
-  "XXTXXTXT": "Xỉu",
-  "XTXXTXTX": "Tài",
-  "TXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Xỉu",
-  "XTXTXTXX": "Xỉu",
-  "TXTXTXXX": "Tài",
-  "XTXTXXXT": "Tài",
-  "TXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Xỉu",
-  "TXXXTTXX": "Tài",
-  "XXXTTXXT": "Tài",
-  "XXTTXXTT": "Tài",
-  "XTTXXTTT": "Tài",
-  "TTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Xỉu",
-  "XXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Tài",
-  "TTTTXXXT": "Tài",
-  "TTTXXXTT": "Xỉu",
-  "TTXXXTTX": "Tài",
-  "TXXXTTXT": "Tài",
-  "XXXTTXTT": "Xỉu",
-  "XXTTXTTX": "Xỉu",
-  "XTTXTTXX": "Tài",
-  "TTXTTXXT": "Tài",
-  "TXTTXXTT": "Tài",
-  "XTTXXTTT": "Xỉu",
-  "TTXXTTTX": "Xỉu",
-  "TXXTTTXX": "Tài",
-  "XXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Tài",
-  "TTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Tài",
-  "TXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Xỉu",
-  "XTXTXTXX": "Xỉu",
-  "TXTXTXXX": "Tài",
-  "XTXTXXXT": "Xỉu",
-  "TXTXXXTX": "Xỉu",
-  "XTXXXTXX": "Xỉu",
-  "TXXXTXXX": "Xỉu",
-  "XXXTXXXX": "Tài",
-  "XXTXXXXT": "Tài",
-  "XTXXXXTT": "Tài",
-  "TXXXXTTT": "Tài",
-  "XXXXTTTT": "Xỉu",
-  "XXXTTTTX": "Xỉu",
-  "XXTTTTXX": "Tài",
-  "XTTTTXXT": "Tài",
-  "TTTTXXTT": "Tài",
-  "TTTXXTTT": "Xỉu",
-  "TTXXTTTX": "Xỉu",
-  "TXXTTTXX": "Tài",
-  "XXTTTXXT": "Tài",
-  "XTTTXXTT": "Tài",
-  "TTTXXTTT": "Tài",
-  "TTXXTTTT": "Tài",
-  "TXXTTTTT": "Tài",
-  "XXTTTTTT": "Tài",
-  "XTTTTTTT": "Tài",
-  "TTTTTTTT": "Tài",
-  "TTTTTTTT": "Xỉu",
-  "TTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Tài",
-  "TTTTTXXT": "Tài",
-  "TTTTXXTT": "Xỉu",
-  "TTTXXTTX": "Xỉu",
-  "TTXXTTXX": "Tài",
-  "TXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Xỉu",
-  "XTTXXTXX": "Tài",
-  "TTXXTXXT": "Xỉu",
-  "TXXTXXTX": "Xỉu",
-  "XXTXXTXX": "Xỉu",
-  "XTXXTXXX": "Xỉu",
-  "TXXTXXXX": "Tài",
-  "XXTXXXXT": "Xỉu",
-  "XTXXXXTX": "Tài",
-  "TXXXXTXT": "Tài",
-  "XXXXTXTT": "Tài",
-  "XXXTXTTT": "Tài",
-  "XXTXTTTT": "Tài",
-  "XTXTTTTT": "Tài",
-  "TXTTTTTT": "Tài",
-  "XTTTTTTT": "Tài",
-  "TTTTTTTT": "Tài",
-  "TTTTTTTT": "Xỉu",
-  "TTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Tài",
-  "TTTTTXXT": "Xỉu",
-  "TTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Tài",
-  "TTXXTXXT": "Tài",
-  "TXXTXXTT": "Tài",
-  "XXTXXTTT": "Tài",
-  "XTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Xỉu",
-  "XXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Tài",
-  "TTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Tài",
-  "XXXXXTXT": "Xỉu",
-  "XXXXTXTX": "Xỉu",
-  "XXXTXTXX": "Xỉu",
-  "XXTXTXXX": "Tài",
-  "XTXTXXXT": "Tài",
-  "TXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Xỉu",
-  "TXXXTTXX": "Xỉu",
-  "XXXTTXXX": "Tài",
-  "XXTTXXXT": "Tài",
-  "XTTXXXTT": "Xỉu",
-  "TTXXXTTX": "Xỉu",
-  "TXXXTTXX": "Xỉu",
-  "XXXTTXXX": "Xỉu",
-  "XXTTXXXX": "Tài",
-  "XTTXXXXT": "Xỉu",
-  "TTXXXXTX": "Tài",
-  "TXXXXTXT": "Xỉu",
-  "XXXXTXTX": "Tài",
-  "XXXTXTXT": "Tài",
-  "XXTXTXTT": "Xỉu",
-  "XTXTXTTX": "Tài",
-  "TXTXTTXT": "Tài",
-  "XTXTTXTT": "Xỉu",
-  "TXTTXTTX": "Tài",
-  "XTTXTTXT": "Tài",
-  "TTXTTXTT": "Tài",
-  "TXTTXTTT": "Tài",
-  "XTTXTTTT": "Tài",
-  "TTXTTTTT": "Tài",
-  "TXTTTTTT": "Tài",
-  "XTTTTTTT": "Xỉu",
-  "TTTTTTTX": "Tài",
-  "TTTTTTXT": "Tài",
-  "TTTTTXTT": "Xỉu",
-  "TTTTXTTX": "Xỉu",
-  "TTTXTTXX": "Tài",
-  "TTXTTXXT": "Tài",
-  "TXTTXXTT": "Tài",
-  "XTTXXTTT": "Tài",
-  "TTXXTTTT": "Tài",
-  "TXXTTTTT": "Tài",
-  "XXTTTTTT": "Tài",
-  "XTTTTTTT": "Tài",
-  "TTTTTTTT": "Tài",
-  "TTTTTTTT": "Tài",
-  "TTTTTTTT": "Tài",
-  "TTTTTTTT": "Xỉu",
-  "TTTTTTTX": "Tài",
-  "TTTTTTXT": "Xỉu",
-  "TTTTTXTX": "Xỉu",
-  "TTTTXTXX": "Xỉu",
-  "TTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Tài",
-  "TXTXXXXT": "Xỉu",
-  "XTXXXXTX": "Tài",
-  "TXXXXTXT": "Tài",
-  "XXXXTXTT": "Tài",
-  "XXXTXTTT": "Tài",
-  "XXTXTTTT": "Xỉu",
-  "XTXTTTTX": "Tài",
-  "TXTTTTXT": "Xỉu",
-  "XTTTTXTX": "Tài",
-  "TTTTXTXT": "Tài",
-  "TTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Xỉu",
-  "TXTXTTXX": "Tài",
-  "XTXTTXXT": "Tài",
-  "TXTTXXTT": "Tài",
-  "XTTXXTTT": "Tài",
-  "TTXXTTTT": "Tài",
-  "TXXTTTTT": "Xỉu",
-  "XXTTTTTX": "Tài",
-  "XTTTTTXT": "Xỉu",
-  "TTTTTXTX": "Tài",
-  "TTTTXTXT": "Xỉu",
-  "TTTXTXTX": "Tài",
-  "TTXTXTXT": "Xỉu",
-  "TXTXTXTX": "Xỉu",
-  "XTXTXTXX": "Tài",
-  "TXTXTXXT": "Xỉu",
-  "XTXTXXTX": "Xỉu",
-  "TXTXXTXX": "Tài",
-  "XTXXTXXT": "Xỉu",
-  "TXXTXXTX": "Tài",
-  "XXTXXTXT": "Xỉu",
-  "XTXXTXTX": "Tài",
-  "TXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Tài",
-  "XTXTXTXT": "Xỉu",
-  "TXTXTXTX": "Xỉu",
-  "XTXTXTXX": "Xỉu",
-  "TXTXTXXX": "Xỉu",
-  "XTXTXXXX": "Tài",
-  "TXTXXXXT": "Xỉu",
-  "XTXXXXTX": "Xỉu",
-  "TXXXXTXX": "Xỉu",
-  "XXXXTXXX": "Tài",
-  "XXXTXXXT": "Tài",
-  "XXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Tài",
-  "TXXXTTXT": "Tài",
-  "XXXTTXTT": "Xỉu",
-  "XXTTXTTX": "Tài",
-  "XTTXTTXT": "Xỉu",
-  "TTXTTXTX": "Tài",
-  "TXTTXTXT": "Xỉu",
-  "XTTXTXTX": "Xỉu",
-  "TTXTXTXX": "Tài",
-  "TXTXTXXT": "Tài",
-  "XTXTXXTT": "Tài",
-  "TXTXXTTT": "Xỉu",
-  "XTXXTTTX": "Tài",
-  "TXXTTTXT": "Tài",
-  "XXTTTXTT": "Xỉu",
-  "XTTTXTTX": "Tài",
-  "TTTXTTXT": "Xỉu",
-  "TTXTTXTX": "Tài",
-  "TXTTXTXT": "Xỉu",
-  "XTTXTXTX": "Xỉu",
-  "TTXTXTXX": "Xỉu",
-  "TXTXTXXX": "Tài",
-  "XTXTXXXT": "Tài",
-  "TXTXXXTT": "Tài",
-  "XTXXXTTT": "Xỉu",
-  "TXXXTTTX": "Xỉu",
-  "XXXTTTXX": "Tài",
-  "XXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Tài",
-  "TTXXTXXT": "Xỉu",
-  "TXXTXXTX": "Xỉu",
-  "XXTXXTXX": "Xỉu",
-  "XTXXTXXX": "Xỉu",
-  "TXXTXXXX": "Xỉu",
-  "XXTXXXXX": "Tài",
-  "XTXXXXXT": "Tài",
-  "TXXXXXTT": "Tài",
-  "XXXXXTTT": "Tài",
-  "XXXXTTTT": "Tài",
-  "XXXTTTTT": "Tài",
-  "XXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Tài",
-  "TTTTTXXT": "Tài",
-  "TTTTXXTT": "Xỉu",
-  "TTTXXTTX": "Xỉu",
-  "TTXXTTXX": "Tài",
-  "TXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Tài",
-  "XTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Tài",
-  "TXXTXTXT": "Tài",
-  "XXTXTXTT": "Tài",
-  "XTXTXTTT": "Xỉu",
-  "TXTXTTTX": "Xỉu",
-  "XTXTTTXX": "Tài",
-  "TXTTTXXT": "Tài",
-  "XTTTXXTT": "Xỉu",
-  "TTTXXTTX": "Xỉu",
-  "TTXXTTXX": "Tài",
-  "TXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Xỉu",
-  "XTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Tài",
-  "TXXTXXXT": "Tài",
-  "XXTXXXTT": "Tài",
-  "XTXXXTTT": "Xỉu",
-  "TXXXTTTX": "Tài",
-  "XXXTTTXT": "Tài",
-  "XXTTTXTT": "Xỉu",
-  "XTTTXTTX": "Xỉu",
-  "TTTXTTXX": "Tài",
-  "TTXTTXXT": "Tài",
-  "TXTTXXTT": "Tài",
-  "XTTXXTTT": "Xỉu",
-  "TTXXTTTX": "Xỉu",
-  "TXXTTTXX": "Xỉu",
-  "XXTTTXXX": "Tài",
-  "XTTTXXXT": "Tài",
-  "TTTXXXTT": "Tài",
-  "TTXXXTTT": "Xỉu",
-  "TXXXTTTX": "Xỉu",
-  "XXXTTTXX": "Tài",
-  "XXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Tài",
-  "TTTXXTXT": "Tài",
-  "TTXXTXTT": "Xỉu",
-  "TXXTXTTX": "Xỉu",
-  "XXTXTTXX": "Tài",
-  "XTXTTXXT": "Xỉu",
-  "TXTTXXTX": "Xỉu",
-  "XTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Tài",
-  "TXXTXXXT": "Tài",
-  "XXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Xỉu",
-  "TXXXTTXX": "Tài",
-  "XXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Tài",
-  "XTTXXTXT": "Tài",
-  "TTXXTXTT": "Tài",
-  "TXXTXTTT": "Xỉu",
-  "XXTXTTTX": "Xỉu",
-  "XTXTTTXX": "Tài",
-  "TXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Tài",
-  "TTTXXTXT": "Tài",
-  "TTXXTXTT": "Tài",
-  "TXXTXTTT": "Tài",
-  "XXTXTTTT": "Xỉu",
-  "XTXTTTTX": "Xỉu",
-  "TXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Tài",
-  "TTTTXXXT": "Xỉu",
-  "TTTXXXTX": "Xỉu",
-  "TTXXXTXX": "Tài",
-  "TXXXTXXT": "Tài",
-  "XXXTXXTT": "Tài",
-  "XXTXXTTT": "Tài",
-  "XTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Tài",
-  "XXTTTTXT": "Xỉu",
-  "XTTTTXTX": "Xỉu",
-  "TTTTXTXX": "Tài",
-  "TTTXTXXT": "Xỉu",
-  "TTXTXXTX": "Xỉu",
-  "TXTXXTXX": "Xỉu",
-  "XTXXTXXX": "Xỉu",
-  "TXXTXXXX": "Xỉu",
-  "XXTXXXXX": "Xỉu",
-  "XTXXXXXX": "Xỉu",
-  "TXXXXXXX": "Tài",
-  "XXXXXXXT": "Tài",
-  "XXXXXXTT": "Xỉu",
-  "XXXXXTTX": "Tài",
-  "XXXXTTXT": "Tài",
-  "XXXTTXTT": "Xỉu",
-  "XXTTXTTX": "Tài",
-  "XTTXTTXT": "Xỉu",
-  "TTXTTXTX": "Xỉu",
-  "TXTTXTXX": "Tài",
-  "XTTXTXXT": "Xỉu",
-  "TTXTXXTX": "Tài",
-  "TXTXXTXT": "Xỉu",
-  "XTXXTXTX": "Tài",
-  "TXXTXTXT": "Tài",
-  "XXTXTXTT": "Tài",
-  "XTXTXTTT": "Tài",
-  "TXTXTTTT": "Xỉu",
-  "XTXTTTTX": "Xỉu",
-  "TXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Tài",
-  "TTTTXXXT": "Xỉu",
-  "TTTXXXTX": "Tài",
-  "TTXXXTXT": "Tài",
-  "TXXXTXTT": "Tài",
-  "XXXTXTTT": "Xỉu",
-  "XXTXTTTX": "Xỉu",
-  "XTXTTTXX": "Tài",
-  "TXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Tài",
-  "TTXXTXXT": "Xỉu",
-  "TXXTXXTX": "Tài",
-  "XXTXXTXT": "Tài",
-  "XTXXTXTT": "Tài",
-  "TXXTXTTT": "Tài",
-  "XXTXTTTT": "Tài",
-  "XTXTTTTT": "Xỉu",
-  "TXTTTTTX": "Tài",
-  "XTTTTTXT": "Xỉu",
-  "TTTTTXTX": "Tài",
-  "TTTTXTXT": "Tài",
-  "TTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Xỉu",
-  "TXTXTTXX": "Tài",
-  "XTXTTXXT": "Tài",
-  "TXTTXXTT": "Tài",
-  "XTTXXTTT": "Tài",
-  "TTXXTTTT": "Tài",
-  "TXXTTTTT": "Tài",
-  "XXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Tài",
-  "TTTTTTXT": "Xỉu",
-  "TTTTTXTX": "Tài",
-  "TTTTXTXT": "Tài",
-  "TTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Tài",
-  "TXTXTTXT": "Tài",
-  "XTXTTXTT": "Xỉu",
-  "TXTTXTTX": "Xỉu",
-  "XTTXTTXX": "Tài",
-  "TTXTTXXT": "Xỉu",
-  "TXTTXXTX": "Xỉu",
-  "XTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Xỉu",
-  "TXXTXXXX": "Xỉu",
-  "XXTXXXXX": "Tài",
-  "XTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Tài",
-  "XXXXXTXT": "Tài",
-  "XXXXTXTT": "Tài",
-  "XXXTXTTT": "Xỉu",
-  "XXTXTTTX": "Xỉu",
-  "XTXTTTXX": "Xỉu",
-  "TXTTTXXX": "Tài",
-  "XTTTXXXT": "Tài",
-  "TTTXXXTT": "Xỉu",
-  "TTXXXTTX": "Tài",
-  "TXXXTTXT": "Xỉu",
-  "XXXTTXTX": "Xỉu",
-  "XXTTXTXX": "Xỉu",
-  "XTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Xỉu",
-  "TXTXXXXX": "Xỉu",
-  "XTXXXXXX": "Tài",
-  "TXXXXXXT": "Tài",
-  "XXXXXXTT": "Xỉu",
-  "XXXXXTTX": "Xỉu",
-  "XXXXTTXX": "Xỉu",
-  "XXXTTXXX": "Xỉu",
-  "XXTTXXXX": "Tài",
-  "XTTXXXXT": "Tài",
-  "TTXXXXTT": "Tài",
-  "TXXXXTTT": "Tài",
-  "XXXXTTTT": "Tài",
-  "XXXTTTTT": "Tài",
-  "XXTTTTTT": "Tài",
-  "XTTTTTTT": "Tài",
-  "TTTTTTTT": "Tài",
-  "TTTTTTTT": "Tài",
-  "TTTTTTTT": "Xỉu",
-  "TTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Tài",
-  "TTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Xỉu",
-  "XXXXXTXX": "Tài",
-  "XXXXTXXT": "Tài",
-  "XXXTXXTT": "Tài",
-  "XXTXXTTT": "Xỉu",
-  "XTXXTTTX": "Xỉu",
-  "TXXTTTXX": "Tài",
-  "XXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Tài",
-  "TTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Xỉu",
-  "TXXTXTXX": "Tài",
-  "XXTXTXXT": "Tài",
-  "XTXTXXTT": "Xỉu",
-  "TXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Xỉu",
-  "TXXTTXXX": "Xỉu",
-  "XXTTXXXX": "Xỉu",
-  "XTTXXXXX": "Tài",
-  "TTXXXXXT": "Tài",
-  "TXXXXXTT": "Xỉu",
-  "XXXXXTTX": "Tài",
-  "XXXXTTXT": "Tài",
-  "XXXTTXTT": "Tài",
-  "XXTTXTTT": "Xỉu",
-  "XTTXTTTX": "Xỉu",
-  "TTXTTTXX": "Xỉu",
-  "TXTTTXXX": "Xỉu",
-  "XTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Xỉu",
-  "TTXXXXXX": "Xỉu",
-  "TXXXXXXX": "Tài",
-  "XXXXXXXT": "Xỉu",
-  "XXXXXXTX": "Tài",
-  "XXXXXTXT": "Tài",
-  "XXXXTXTT": "Tài",
-  "XXXTXTTT": "Xỉu",
-  "XXTXTTTX": "Xỉu",
-  "XTXTTTXX": "Xỉu",
-  "TXTTTXXX": "Xỉu",
-  "XTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Tài",
-  "TTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Xỉu",
-  "XXXXXTXX": "Xỉu",
-  "XXXXTXXX": "Xỉu",
-  "XXXTXXXX": "Tài",
-  "XXTXXXXT": "Xỉu",
-  "XTXXXXTX": "Xỉu",
-  "TXXXXTXX": "Tài",
-  "XXXXTXXT": "Tài",
-  "XXXTXXTT": "Tài",
-  "XXTXXTTT": "Tài",
-  "XTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Xỉu",
-  "XXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Tài",
-  "TTTTXXXT": "Xỉu",
-  "TTTXXXTX": "Tài",
-  "TTXXXTXT": "Tài",
-  "TXXXTXTT": "Xỉu",
-  "XXXTXTTX": "Xỉu",
-  "XXTXTTXX": "Tài",
-  "XTXTTXXT": "Tài",
-  "TXTTXXTT": "Tài",
-  "XTTXXTTT": "Tài",
-  "TTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Tài",
-  "XXTTTTXT": "Tài",
-  "XTTTTXTT": "Tài",
-  "TTTTXTTT": "Xỉu",
-  "TTTXTTTX": "Tài",
-  "TTXTTTXT": "Tài",
-  "TXTTTXTT": "Tài",
-  "XTTTXTTT": "Tài",
-  "TTTXTTTT": "Xỉu",
-  "TTXTTTTX": "Xỉu",
-  "TXTTTTXX": "Tài",
-  "XTTTTXXT": "Tài",
-  "TTTTXXTT": "Tài",
-  "TTTXXTTT": "Tài",
-  "TTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Xỉu",
-  "XXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Tài",
-  "TTTTXXXT": "Xỉu",
-  "TTTXXXTX": "Xỉu",
-  "TTXXXTXX": "Xỉu",
-  "TXXXTXXX": "Xỉu",
-  "XXXTXXXX": "Xỉu",
-  "XXTXXXXX": "Tài",
-  "XTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Xỉu",
-  "XXXXXTXX": "Tài",
-  "XXXXTXXT": "Tài",
-  "XXXTXXTT": "Tài",
-  "XXTXXTTT": "Tài",
-  "XTXXTTTT": "Tài",
-  "TXXTTTTT": "Xỉu",
-  "XXTTTTTX": "Tài",
-  "XTTTTTXT": "Tài",
-  "TTTTTXTT": "Tài",
-  "TTTTXTTT": "Xỉu",
-  "TTTXTTTX": "Tài",
-  "TTXTTTXT": "Xỉu",
-  "TXTTTXTX": "Xỉu",
-  "XTTTXTXX": "Xỉu",
-  "TTTXTXXX": "Tài",
-  "TTXTXXXT": "Xỉu",
-  "TXTXXXTX": "Tài",
-  "XTXXXTXT": "Xỉu",
-  "TXXXTXTX": "Tài",
-  "XXXTXTXT": "Tài",
-  "XXTXTXTT": "Xỉu",
-  "XTXTXTTX": "Tài",
-  "TXTXTTXT": "Tài",
-  "XTXTTXTT": "Tài",
-  "TXTTXTTT": "Xỉu",
-  "XTTXTTTX": "Xỉu",
-  "TTXTTTXX": "Xỉu",
-  "TXTTTXXX": "Tài",
-  "XTTTXXXT": "Xỉu",
-  "TTTXXXTX": "Tài",
-  "TTXXXTXT": "Xỉu",
-  "TXXXTXTX": "Xỉu",
-  "XXXTXTXX": "Xỉu",
-  "XXTXTXXX": "Xỉu",
-  "XTXTXXXX": "Tài",
-  "TXTXXXXT": "Tài",
-  "XTXXXXTT": "Tài",
-  "TXXXXTTT": "Tài",
-  "XXXXTTTT": "Tài",
-  "XXXTTTTT": "Xỉu",
-  "XXTTTTTX": "Tài",
-  "XTTTTTXT": "Xỉu",
-  "TTTTTXTX": "Tài",
-  "TTTTXTXT": "Xỉu",
-  "TTTXTXTX": "Xỉu",
-  "TTXTXTXX": "Xỉu",
-  "TXTXTXXX": "Tài",
-  "XTXTXXXT": "Xỉu",
-  "TXTXXXTX": "Tài",
-  "XTXXXTXT": "Xỉu",
-  "TXXXTXTX": "Tài",
-  "XXXTXTXT": "Tài",
-  "XXTXTXTT": "Xỉu",
-  "XTXTXTTX": "Tài",
-  "TXTXTTXT": "Tài",
-  "XTXTTXTT": "Tài",
-  "TXTTXTTT": "Tài",
-  "XTTXTTTT": "Xỉu",
-  "TTXTTTTX": "Xỉu",
-  "TXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Tài",
-  "TTTTXXXT": "Xỉu",
-  "TTTXXXTX": "Xỉu",
-  "TTXXXTXX": "Tài",
-  "TXXXTXXT": "Xỉu",
-  "XXXTXXTX": "Xỉu",
-  "XXTXXTXX": "Xỉu",
-  "XTXXTXXX": "Tài",
-  "TXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Tài",
-  "XTXXXTXT": "Xỉu",
-  "TXXXTXTX": "Xỉu",
-  "XXXTXTXX": "Xỉu",
-  "XXTXTXXX": "Tài",
-  "XTXTXXXT": "Tài",
-  "TXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Xỉu",
-  "TXXXTTXX": "Xỉu",
-  "XXXTTXXX": "Xỉu",
-  "XXTTXXXX": "Xỉu",
-  "XTTXXXXX": "Xỉu",
-  "TTXXXXXX": "Tài",
-  "TXXXXXXT": "Tài",
-  "XXXXXXTT": "Tài",
-  "XXXXXTTT": "Tài",
-  "XXXXTTTT": "Xỉu",
-  "XXXTTTTX": "Tài",
-  "XXTTTTXT": "Tài",
-  "XTTTTXTT": "Xỉu",
-  "TTTTXTTX": "Tài",
-  "TTTXTTXT": "Tài",
-  "TTXTTXTT": "Xỉu",
-  "TXTTXTTX": "Xỉu",
-  "XTTXTTXX": "Tài",
-  "TTXTTXXT": "Tài",
-  "TXTTXXTT": "Tài",
-  "XTTXXTTT": "Tài",
-  "TTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Tài",
-  "XXTTTTXT": "Tài",
-  "XTTTTXTT": "Tài",
-  "TTTTXTTT": "Xỉu",
-  "TTTXTTTX": "Tài",
-  "TTXTTTXT": "Xỉu",
-  "TXTTTXTX": "Xỉu",
-  "XTTTXTXX": "Tài",
-  "TTTXTXXT": "Xỉu",
-  "TTXTXXTX": "Xỉu",
-  "TXTXXTXX": "Tài",
-  "XTXXTXXT": "Tài",
-  "TXXTXXTT": "Tài",
-  "XXTXXTTT": "Xỉu",
-  "XTXXTTTX": "Xỉu",
-  "TXXTTTXX": "Xỉu",
-  "XXTTTXXX": "Tài",
-  "XTTTXXXT": "Tài",
-  "TTTXXXTT": "Xỉu",
-  "TTXXXTTX": "Xỉu",
-  "TXXXTTXX": "Tài",
-  "XXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Xỉu",
-  "XTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Xỉu",
-  "TXXTXXXX": "Tài",
-  "XXTXXXXT": "Tài",
-  "XTXXXXTT": "Xỉu",
-  "TXXXXTTX": "Xỉu",
-  "XXXXTTXX": "Xỉu",
-  "XXXTTXXX": "Xỉu",
-  "XXTTXXXX": "Tài",
-  "XTTXXXXT": "Xỉu",
-  "TTXXXXTX": "Tài",
-  "TXXXXTXT": "Tài",
-  "XXXXTXTT": "Tài",
-  "XXXTXTTT": "Xỉu",
-  "XXTXTTTX": "Xỉu",
-  "XTXTTTXX": "Xỉu",
-  "TXTTTXXX": "Xỉu",
-  "XTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Xỉu",
-  "TTXXXXXX": "Xỉu",
-  "TXXXXXXX": "Tài",
-  "XXXXXXXT": "Xỉu",
-  "XXXXXXTX": "Tài",
-  "XXXXXTXT": "Xỉu",
-  "XXXXTXTX": "Xỉu",
-  "XXXTXTXX": "Xỉu",
-  "XXTXTXXX": "Tài",
-  "XTXTXXXT": "Tài",
-  "TXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Xỉu",
-  "TXXXTTXX": "Tài",
-  "XXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Tài",
-  "XTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Tài",
-  "TXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Xỉu",
-  "XTXTXTXX": "Tài",
-  "TXTXTXXT": "Tài",
-  "XTXTXXTT": "Tài",
-  "TXTXXTTT": "Xỉu",
-  "XTXXTTTX": "Xỉu",
-  "TXXTTTXX": "Tài",
-  "XXTTTXXT": "Tài",
-  "XTTTXXTT": "Xỉu",
-  "TTTXXTTX": "Xỉu",
-  "TTXXTTXX": "Xỉu",
-  "TXXTTXXX": "Tài",
-  "XXTTXXXT": "Tài",
-  "XTTXXXTT": "Xỉu",
-  "TTXXXTTX": "Xỉu",
-  "TXXXTTXX": "Tài",
-  "XXXTTXXT": "Tài",
-  "XXTTXXTT": "Tài",
-  "XTTXXTTT": "Xỉu",
-  "TTXXTTTX": "Xỉu",
-  "TXXTTTXX": "Xỉu",
-  "XXTTTXXX": "Tài",
-  "XTTTXXXT": "Tài",
-  "TTTXXXTT": "Xỉu",
-  "TTXXXTTX": "Xỉu",
-  "TXXXTTXX": "Xỉu",
-  "XXXTTXXX": "Xỉu",
-  "XXTTXXXX": "Tài",
-  "XTTXXXXT": "Xỉu",
-  "TTXXXXTX": "Xỉu",
-  "TXXXXTXX": "Tài",
-  "XXXXTXXT": "Tài",
-  "XXXTXXTT": "Tài",
-  "XXTXXTTT": "Xỉu",
-  "XTXXTTTX": "Tài",
-  "TXXTTTXT": "Xỉu",
-  "XXTTTXTX": "Xỉu",
-  "XTTTXTXX": "Tài",
-  "TTTXTXXT": "Xỉu",
-  "TTXTXXTX": "Xỉu",
-  "TXTXXTXX": "Xỉu",
-  "XTXXTXXX": "Tài",
-  "TXXTXXXT": "Tài",
-  "XXTXXXTT": "Tài",
-  "XTXXXTTT": "Xỉu",
-  "TXXXTTTX": "Xỉu",
-  "XXXTTTXX": "Tài",
-  "XXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Tài",
-  "TTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Tài",
-  "TXXTXTXT": "Tài",
-  "XXTXTXTT": "Tài",
-  "XTXTXTTT": "Tài",
-  "TXTXTTTT": "Tài",
-  "XTXTTTTT": "Tài",
-  "TXTTTTTT": "Tài",
-  "XTTTTTTT": "Tài",
-  "TTTTTTTT": "Tài",
-  "TTTTTTTT": "Tài",
-  "TTTTTTTT": "Xỉu",
-  "TTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Tài",
-  "TTTTTXXT": "Tài",
-  "TTTTXXTT": "Tài",
-  "TTTXXTTT": "Xỉu",
-  "TTXXTTTX": "Xỉu",
-  "TXXTTTXX": "Tài",
-  "XXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Tài",
-  "TTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Tài",
-  "TXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Tài",
-  "XTXTXTXT": "Tài",
-  "TXTXTXTT": "Xỉu",
-  "XTXTXTTX": "Tài",
-  "TXTXTTXT": "Tài",
-  "XTXTTXTT": "Tài",
-  "TXTTXTTT": "Xỉu",
-  "XTTXTTTX": "Tài",
-  "TTXTTTXT": "Tài",
-  "TXTTTXTT": "Xỉu",
-  "XTTTXTTX": "Tài",
-  "TTTXTTXT": "Xỉu",
-  "TTXTTXTX": "Tài",
-  "TXTTXTXT": "Xỉu",
-  "XTTXTXTX": "Tài",
-  "TTXTXTXT": "Tài",
-  "TXTXTXTT": "Xỉu",
-  "XTXTXTTX": "Tài",
-  "TXTXTTXT": "Xỉu",
-  "XTXTTXTX": "Xỉu",
-  "TXTTXTXX": "Tài",
-  "XTTXTXXT": "Tài",
-  "TTXTXXTT": "Tài",
-  "TXTXXTTT": "Tài",
-  "XTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Tài",
-  "XXTTTTXT": "Xỉu",
-  "XTTTTXTX": "Tài",
-  "TTTTXTXT": "Xỉu",
-  "TTTXTXTX": "Tài",
-  "TTXTXTXT": "Tài",
-  "TXTXTXTT": "Tài",
-  "XTXTXTTT": "Xỉu",
-  "TXTXTTTX": "Xỉu",
-  "XTXTTTXX": "Tài",
-  "TXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Tài",
-  "TTTXXTXT": "Tài",
-  "TTXXTXTT": "Xỉu",
-  "TXXTXTTX": "Xỉu",
-  "XXTXTTXX": "Tài",
-  "XTXTTXXT": "Tài",
-  "TXTTXXTT": "Xỉu",
-  "XTTXXTTX": "Tài",
-  "TTXXTTXT": "Xỉu",
-  "TXXTTXTX": "Tài",
-  "XXTTXTXT": "Xỉu",
-  "XTTXTXTX": "Xỉu",
-  "TTXTXTXX": "Tài",
-  "TXTXTXXT": "Xỉu",
-  "XTXTXXTX": "Xỉu",
-  "TXTXXTXX": "Tài",
-  "XTXXTXXT": "Xỉu",
-  "TXXTXXTX": "Xỉu",
-  "XXTXXTXX": "Xỉu",
-  "XTXXTXXX": "Tài",
-  "TXXTXXXT": "Tài",
-  "XXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Tài",
-  "TXXXTTXT": "Xỉu",
-  "XXXTTXTX": "Xỉu",
-  "XXTTXTXX": "Tài",
-  "XTTXTXXT": "Tài",
-  "TTXTXXTT": "Xỉu",
-  "TXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Tài",
-  "TXXTTXXT": "Tài",
-  "XXTTXXTT": "Tài",
-  "XTTXXTTT": "Tài",
-  "TTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Xỉu",
-  "XXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Tài",
-  "TTTXXXXT": "Xỉu",
-  "TTXXXXTX": "Xỉu",
-  "TXXXXTXX": "Tài",
-  "XXXXTXXT": "Tài",
-  "XXXTXXTT": "Xỉu",
-  "XXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Tài",
-  "TXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Tài",
-  "XTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Tài",
-  "TXXTXTXT": "Tài",
-  "XXTXTXTT": "Tài",
-  "XTXTXTTT": "Tài",
-  "TXTXTTTT": "Tài",
-  "XTXTTTTT": "Xỉu",
-  "TXTTTTTX": "Xỉu",
-  "XTTTTTXX": "Tài",
-  "TTTTTXXT": "Xỉu",
-  "TTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Tài",
-  "TTXXTXXT": "Xỉu",
-  "TXXTXXTX": "Xỉu",
-  "XXTXXTXX": "Tài",
-  "XTXXTXXT": "Tài",
-  "TXXTXXTT": "Tài",
-  "XXTXXTTT": "Xỉu",
-  "XTXXTTTX": "Tài",
-  "TXXTTTXT": "Tài",
-  "XXTTTXTT": "Tài",
-  "XTTTXTTT": "Tài",
-  "TTTXTTTT": "Tài",
-  "TTXTTTTT": "Xỉu",
-  "TXTTTTTX": "Tài",
-  "XTTTTTXT": "Tài",
-  "TTTTTXTT": "Tài",
-  "T": "Xỉu",
-  "TX": "Tài",
-  "TXT": "Tài",
-  "TXTT": "Tài",
-  "TXTTT": "Xỉu",
-  "TXTTTX": "Xỉu",
-  "TXTTTXX": "Xỉu",
-  "TXTTTXXX": "Tài",
-  "XTTTXXXT": "Xỉu",
-  "TTTXXXTX": "Tài",
-  "TTXXXTXT": "Xỉu",
-  "TXXXTXTX": "Tài",
-  "XXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Tài",
-  "XTXTXTXT": "Tài",
-  "TXTXTXTT": "Tài",
-  "XTXTXTTT": "Tài",
-  "TXTXTTTT": "Xỉu",
-  "XTXTTTTX": "Tài",
-  "TXTTTTXT": "Xỉu",
-  "XTTTTXTX": "Tài",
-  "TTTTXTXT": "Xỉu",
-  "TTTXTXTX": "Xỉu",
-  "TTXTXTXX": "Tài",
-  "TXTXTXXT": "Xỉu",
-  "XTXTXXTX": "Xỉu",
-  "TXTXXTXX": "Tài",
-  "XTXXTXXT": "Tài",
-  "TXXTXXTT": "Tài",
-  "XXTXXTTT": "Tài",
-  "XTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Xỉu",
-  "XXTTTTXX": "Tài",
-  "XTTTTXXT": "Tài",
-  "TTTTXXTT": "Tài",
-  "TTTXXTTT": "Xỉu",
-  "TTXXTTTX": "Tài",
-  "TXXTTTXT": "Tài",
-  "XXTTTXTT": "Tài",
-  "XTTTXTTT": "Xỉu",
-  "TTTXTTTX": "Tài",
-  "TTXTTTXT": "Tài",
-  "TXTTTXTT": "Xỉu",
-  "XTTTXTTX": "Tài",
-  "TTTXTTXT": "Xỉu",
-  "TTXTTXTX": "Tài",
-  "TXTTXTXT": "Tài",
-  "XTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Tài",
-  "TXTXTTXT": "Tài",
-  "XTXTTXTT": "Tài",
-  "TXTTXTTT": "Tài",
-  "XTTXTTTT": "Xỉu",
-  "TTXTTTTX": "Tài",
-  "TXTTTTXT": "Tài",
-  "XTTTTXTT": "Xỉu",
-  "TTTTXTTX": "Xỉu",
-  "TTTXTTXX": "Xỉu",
-  "TTXTTXXX": "Tài",
-  "TXTTXXXT": "Xỉu",
-  "XTTXXXTX": "Tài",
-  "TTXXXTXT": "Xỉu",
-  "TXXXTXTX": "Xỉu",
-  "XXXTXTXX": "Tài",
-  "XXTXTXXT": "Tài",
-  "XTXTXXTT": "Tài",
-  "TXTXXTTT": "Tài",
-  "XTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Xỉu",
-  "XXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Tài",
-  "TTTXXXXT": "Tài",
-  "TTXXXXTT": "Tài",
-  "TXXXXTTT": "Xỉu",
-  "XXXXTTTX": "Tài",
-  "XXXTTTXT": "Tài",
-  "XXTTTXTT": "Xỉu",
-  "XTTTXTTX": "Xỉu",
-  "TTTXTTXX": "Xỉu",
-  "TTXTTXXX": "Tài",
-  "TXTTXXXT": "Xỉu",
-  "XTTXXXTX": "Tài",
-  "TTXXXTXT": "Tài",
-  "TXXXTXTT": "Tài",
-  "XXXTXTTT": "Tài",
-  "XXTXTTTT": "Xỉu",
-  "XTXTTTTX": "Xỉu",
-  "TXTTTTXX": "Tài",
-  "XTTTTXXT": "Xỉu",
-  "TTTTXXTX": "Tài",
-  "TTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Tài",
-  "TXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Xỉu",
-  "XTXTXTXX": "Tài",
-  "TXTXTXXT": "Xỉu",
-  "XTXTXXTX": "Tài",
-  "TXTXXTXT": "Xỉu",
-  "XTXXTXTX": "Xỉu",
-  "TXXTXTXX": "Xỉu",
-  "XXTXTXXX": "Tài",
-  "XTXTXXXT": "Tài",
-  "TXTXXXTT": "Tài",
-  "XTXXXTTT": "Tài",
-  "TXXXTTTT": "Xỉu",
-  "XXXTTTTX": "Xỉu",
-  "XXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Tài",
-  "TTTXXXXT": "Xỉu",
-  "TTXXXXTX": "Tài",
-  "TXXXXTXT": "Xỉu",
-  "XXXXTXTX": "Tài",
-  "XXXTXTXT": "Tài",
-  "XXTXTXTT": "Xỉu",
-  "XTXTXTTX": "Xỉu",
-  "TXTXTTXX": "Tài",
-  "XTXTTXXT": "Xỉu",
-  "TXTTXXTX": "Tài",
-  "XTTXXTXT": "Tài",
-  "TTXXTXTT": "Tài",
-  "TXXTXTTT": "Tài",
-  "XXTXTTTT": "Xỉu",
-  "XTXTTTTX": "Tài",
-  "TXTTTTXT": "Tài",
-  "XTTTTXTT": "Tài",
-  "TTTTXTTT": "Tài",
-  "TTTXTTTT": "Tài",
-  "TTXTTTTT": "Xỉu",
-  "TXTTTTTX": "Xỉu",
-  "XTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Tài",
-  "TTTTXXXT": "Tài",
-  "TTTXXXTT": "Xỉu",
-  "TTXXXTTX": "Tài",
-  "TXXXTTXT": "Tài",
-  "XXXTTXTT": "Xỉu",
-  "XXTTXTTX": "Tài",
-  "XTTXTTXT": "Xỉu",
-  "TTXTTXTX": "Tài",
-  "TXTTXTXT": "Xỉu",
-  "XTTXTXTX": "Xỉu",
-  "TTXTXTXX": "Xỉu",
-  "TXTXTXXX": "Tài",
-  "XTXTXXXT": "Xỉu",
-  "TXTXXXTX": "Tài",
-  "XTXXXTXT": "Xỉu",
-  "TXXXTXTX": "Tài",
-  "XXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Tài",
-  "XTXTXTXT": "Xỉu",
-  "TXTXTXTX": "Xỉu",
-  "XTXTXTXX": "Tài",
-  "TXTXTXXT": "Xỉu",
-  "XTXTXXTX": "Xỉu",
-  "TXTXXTXX": "Tài",
-  "XTXXTXXT": "Xỉu",
-  "TXXTXXTX": "Xỉu",
-  "XXTXXTXX": "Tài",
-  "XTXXTXXT": "Xỉu",
-  "TXXTXXTX": "Tài",
-  "XXTXXTXT": "Tài",
-  "XTXXTXTT": "Xỉu",
-  "TXXTXTTX": "Tài",
-  "XXTXTTXT": "Tài",
-  "XTXTTXTT": "Tài",
-  "TXTTXTTT": "Tài",
-  "XTTXTTTT": "Tài",
-  "TTXTTTTT": "Tài",
-  "TXTTTTTT": "Tài",
-  "XTTTTTTT": "Tài",
-  "TTTTTTTT": "Xỉu",
-  "TTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Tài",
-  "TTTTXXXT": "Tài",
-  "TTTXXXTT": "Tài",
-  "TTXXXTTT": "Tài",
-  "TXXXTTTT": "Tài",
-  "XXXTTTTT": "Xỉu",
-  "XXTTTTTX": "Tài",
-  "XTTTTTXT": "Tài",
-  "TTTTTXTT": "Tài",
-  "TTTTXTTT": "Tài",
-  "TTTXTTTT": "Xỉu",
-  "TTXTTTTX": "Xỉu",
-  "TXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Xỉu",
-  "TTXXXXXX": "Xỉu",
-  "TXXXXXXX": "Tài",
-  "XXXXXXXT": "Xỉu",
-  "XXXXXXTX": "Tài",
-  "XXXXXTXT": "Xỉu",
-  "XXXXTXTX": "Xỉu",
-  "XXXTXTXX": "Tài",
-  "XXTXTXXT": "Tài",
-  "XTXTXXTT": "Tài",
-  "TXTXXTTT": "Xỉu",
-  "XTXXTTTX": "Tài",
-  "TXXTTTXT": "Tài",
-  "XXTTTXTT": "Tài",
-  "XTTTXTTT": "Tài",
-  "TTTXTTTT": "Tài",
-  "TTXTTTTT": "Xỉu",
-  "TXTTTTTX": "Xỉu",
-  "XTTTTTXX": "Tài",
-  "TTTTTXXT": "Xỉu",
-  "TTTTXXTX": "Tài",
-  "TTTXXTXT": "Tài",
-  "TTXXTXTT": "Xỉu",
-  "TXXTXTTX": "Xỉu",
-  "XXTXTTXX": "Tài",
-  "XTXTTXXT": "Tài",
-  "TXTTXXTT": "Xỉu",
-  "XTTXXTTX": "Tài",
-  "TTXXTTXT": "Xỉu",
-  "TXXTTXTX": "Tài",
-  "XXTTXTXT": "Tài",
-  "XTTXTXTT": "Tài",
-  "TTXTXTTT": "Xỉu",
-  "TXTXTTTX": "Tài",
-  "XTXTTTXT": "Tài",
-  "TXTTTXTT": "Tài",
-  "XTTTXTTT": "Xỉu",
-  "TTTXTTTX": "Tài",
-  "TTXTTTXT": "Xỉu",
-  "TXTTTXTX": "Xỉu",
-  "XTTTXTXX": "Xỉu",
-  "TTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Xỉu",
-  "TXTXXXXX": "Tài",
-  "XTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Xỉu",
-  "XXXXXTXX": "Xỉu",
-  "XXXXTXXX": "Tài",
-  "XXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Tài",
-  "XTXXXTXT": "Xỉu",
-  "TXXXTXTX": "Xỉu",
-  "XXXTXTXX": "Xỉu",
-  "XXTXTXXX": "Tài",
-  "XTXTXXXT": "Tài",
-  "TXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Xỉu",
-  "TXXXTTXX": "Tài",
-  "XXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Tài",
-  "XTTXXTXT": "Tài",
-  "TTXXTXTT": "Xỉu",
-  "TXXTXTTX": "Xỉu",
-  "XXTXTTXX": "Xỉu",
-  "XTXTTXXX": "Xỉu",
-  "TXTTXXXX": "Xỉu",
-  "XTTXXXXX": "Xỉu",
-  "TTXXXXXX": "Tài",
-  "TXXXXXXT": "Tài",
-  "XXXXXXTT": "Xỉu",
-  "XXXXXTTX": "Xỉu",
-  "XXXXTTXX": "Tài",
-  "XXXTTXXT": "Tài",
-  "XXTTXXTT": "Xỉu",
-  "XTTXXTTX": "Xỉu",
-  "TTXXTTXX": "Tài",
-  "TXXTTXXT": "Tài",
-  "XXTTXXTT": "Tài",
-  "XTTXXTTT": "Xỉu",
-  "TTXXTTTX": "Xỉu",
-  "TXXTTTXX": "Tài",
-  "XXTTTXXT": "Tài",
-  "XTTTXXTT": "Tài",
-  "TTTXXTTT": "Xỉu",
-  "TTXXTTTX": "Tài",
-  "TXXTTTXT": "Tài",
-  "XXTTTXTT": "Tài",
-  "XTTTXTTT": "Xỉu",
-  "TTTXTTTX": "Tài",
-  "TTXTTTXT": "Xỉu",
-  "TXTTTXTX": "Tài",
-  "XTTTXTXT": "Xỉu",
-  "TTTXTXTX": "Tài",
-  "TTXTXTXT": "Xỉu",
-  "TXTXTXTX": "Xỉu",
-  "XTXTXTXX": "Xỉu",
-  "TXTXTXXX": "Tài",
-  "XTXTXXXT": "Tài",
-  "TXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Tài",
-  "TXXXTTXT": "Xỉu",
-  "XXXTTXTX": "Tài",
-  "XXTTXTXT": "Xỉu",
-  "XTTXTXTX": "Xỉu",
-  "TTXTXTXX": "Xỉu",
-  "TXTXTXXX": "Xỉu",
-  "XTXTXXXX": "Xỉu",
-  "TXTXXXXX": "Tài",
-  "XTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Tài",
-  "XXXXXTXT": "Tài",
-  "XXXXTXTT": "Tài",
-  "XXXTXTTT": "Xỉu",
-  "XXTXTTTX": "Tài",
-  "XTXTTTXT": "Xỉu",
-  "TXTTTXTX": "Xỉu",
-  "XTTTXTXX": "Xỉu",
-  "TTTXTXXX": "Tài",
-  "TTXTXXXT": "Tài",
-  "TXTXXXTT": "Tài",
-  "XTXXXTTT": "Tài",
-  "TXXXTTTT": "Tài",
-  "XXXTTTTT": "Xỉu",
-  "XXTTTTTX": "Tài",
-  "XTTTTTXT": "Tài",
-  "TTTTTXTT": "Xỉu",
-  "TTTTXTTX": "Xỉu",
-  "TTTXTTXX": "Tài",
-  "TTXTTXXT": "Xỉu",
-  "TXTTXXTX": "Tài",
-  "XTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Xỉu",
-  "TXXTXTXX": "Tài",
-  "XXTXTXXT": "Xỉu",
-  "XTXTXXTX": "Xỉu",
-  "TXTXXTXX": "Xỉu",
-  "XTXXTXXX": "Tài",
-  "TXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Xỉu",
-  "XTXXXTXX": "Xỉu",
-  "TXXXTXXX": "Xỉu",
-  "XXXTXXXX": "Tài",
-  "XXTXXXXT": "Xỉu",
-  "XTXXXXTX": "Xỉu",
-  "TXXXXTXX": "Tài",
-  "XXXXTXXT": "Tài",
-  "XXXTXXTT": "Tài",
-  "XXTXXTTT": "Tài",
-  "XTXXTTTT": "Tài",
-  "TXXTTTTT": "Tài",
-  "XXTTTTTT": "Tài",
-  "XTTTTTTT": "Xỉu",
-  "TTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Tài",
-  "TTTTXXXT": "Tài",
-  "TTTXXXTT": "Xỉu",
-  "TTXXXTTX": "Tài",
-  "TXXXTTXT": "Tài",
-  "XXXTTXTT": "Tài",
-  "XXTTXTTT": "Xỉu",
-  "XTTXTTTX": "Tài",
-  "TTXTTTXT": "Tài",
-  "TXTTTXTT": "Xỉu",
-  "XTTTXTTX": "Xỉu",
-  "TTTXTTXX": "Xỉu",
-  "TTXTTXXX": "Tài",
-  "TXTTXXXT": "Xỉu",
-  "XTTXXXTX": "Tài",
-  "TTXXXTXT": "Tài",
-  "TXXXTXTT": "Xỉu",
-  "XXXTXTTX": "Xỉu",
-  "XXTXTTXX": "Xỉu",
-  "XTXTTXXX": "Xỉu",
-  "TXTTXXXX": "Tài",
-  "XTTXXXXT": "Xỉu",
-  "TTXXXXTX": "Xỉu",
-  "TXXXXTXX": "Tài",
-  "XXXXTXXT": "Xỉu",
-  "XXXTXXTX": "Xỉu",
-  "XXTXXTXX": "Tài",
-  "XTXXTXXT": "Xỉu",
-  "TXXTXXTX": "Tài",
-  "XXTXXTXT": "Xỉu",
-  "XTXXTXTX": "Tài",
-  "TXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Xỉu",
-  "XTXTXTXX": "Xỉu",
-  "TXTXTXXX": "Xỉu",
-  "XTXTXXXX": "Tài",
-  "TXTXXXXT": "Xỉu",
-  "XTXXXXTX": "Tài",
-  "TXXXXTXT": "Tài",
-  "XXXXTXTT": "Tài",
-  "XXXTXTTT": "Xỉu",
-  "XXTXTTTX": "Xỉu",
-  "XTXTTTXX": "Tài",
-  "TXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Xỉu",
-  "TXXTXXXX": "Xỉu",
-  "XXTXXXXX": "Tài",
-  "XTXXXXXT": "Tài",
-  "TXXXXXTT": "Xỉu",
-  "XXXXXTTX": "Tài",
-  "XXXXTTXT": "Xỉu",
-  "XXXTTXTX": "Tài",
-  "XXTTXTXT": "Tài",
-  "XTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Tài",
-  "TXTXTTXT": "Xỉu",
-  "XTXTTXTX": "Tài",
-  "TXTTXTXT": "Tài",
-  "XTTXTXTT": "Tài",
-  "TTXTXTTT": "Xỉu",
-  "TXTXTTTX": "Xỉu",
-  "XTXTTTXX": "Xỉu",
-  "TXTTTXXX": "Xỉu",
-  "XTTTXXXX": "Tài",
-  "TTTXXXXT": "Xỉu",
-  "TTXXXXTX": "Xỉu",
-  "TXXXXTXX": "Tài",
-  "XXXXTXXT": "Xỉu",
-  "XXXTXXTX": "Tài",
-  "XXTXXTXT": "Tài",
-  "XTXXTXTT": "Tài",
-  "TXXTXTTT": "Xỉu",
-  "XXTXTTTX": "Tài",
-  "XTXTTTXT": "Xỉu",
-  "TXTTTXTX": "Tài",
-  "XTTTXTXT": "Tài",
-  "TTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Tài",
-  "TXTXTTXT": "Tài",
-  "XTXTTXTT": "Tài",
-  "TXTTXTTT": "Tài",
-  "XTTXTTTT": "Tài",
-  "TTXTTTTT": "Xỉu",
-  "TXTTTTTX": "Xỉu",
-  "XTTTTTXX": "Tài",
-  "TTTTTXXT": "Xỉu",
-  "TTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Tài",
-  "TTXXTXXT": "Xỉu",
-  "TXXTXXTX": "Xỉu",
-  "XXTXXTXX": "Xỉu",
-  "XTXXTXXX": "Xỉu",
-  "TXXTXXXX": "Xỉu",
-  "XXTXXXXX": "Tài",
-  "XTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Tài",
-  "XXXXXTXT": "Xỉu",
-  "XXXXTXTX": "Tài",
-  "XXXTXTXT": "Tài",
-  "XXTXTXTT": "Tài",
-  "XTXTXTTT": "Xỉu",
-  "TXTXTTTX": "Tài",
-  "XTXTTTXT": "Tài",
-  "TXTTTXTT": "Xỉu",
-  "XTTTXTTX": "Xỉu",
-  "TTTXTTXX": "Xỉu",
-  "TTXTTXXX": "Tài",
-  "TXTTXXXT": "Xỉu",
-  "XTTXXXTX": "Tài",
-  "TTXXXTXT": "Xỉu",
-  "TXXXTXTX": "Xỉu",
-  "XXXTXTXX": "Tài",
-  "XXTXTXXT": "Xỉu",
-  "XTXTXXTX": "Xỉu",
-  "TXTXXTXX": "Xỉu",
-  "XTXXTXXX": "Xỉu",
-  "TXXTXXXX": "Tài",
-  "XXTXXXXT": "Xỉu",
-  "XTXXXXTX": "Tài",
-  "TXXXXTXT": "Tài",
-  "XXXXTXTT": "Tài",
-  "XXXTXTTT": "Xỉu",
-  "XXTXTTTX": "Xỉu",
-  "XTXTTTXX": "Tài",
-  "TXTTTXXT": "Tài",
-  "XTTTXXTT": "Tài",
-  "TTTXXTTT": "Tài",
-  "TTXXTTTT": "Tài",
-  "TXXTTTTT": "Xỉu",
-  "XXTTTTTX": "Xỉu",
-  "XTTTTTXX": "Tài",
-  "TTTTTXXT": "Xỉu",
-  "TTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Tài",
-  "TTXXTXXT": "Xỉu",
-  "TXXTXXTX": "Tài",
-  "XXTXXTXT": "Tài",
-  "XTXXTXTT": "Tài",
-  "TXXTXTTT": "Xỉu",
-  "XXTXTTTX": "Xỉu",
-  "XTXTTTXX": "Xỉu",
-  "TXTTTXXX": "Xỉu",
-  "XTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Xỉu",
-  "TTXXXXXX": "Tài",
-  "TXXXXXXT": "Tài",
-  "XXXXXXTT": "Xỉu",
-  "XXXXXTTX": "Tài",
-  "XXXXTTXT": "Tài",
-  "XXXTTXTT": "Xỉu",
-  "XXTTXTTX": "Tài",
-  "XTTXTTXT": "Tài",
-  "TTXTTXTT": "Tài",
-  "TXTTXTTT": "Tài",
-  "XTTXTTTT": "Xỉu",
-  "TTXTTTTX": "Tài",
-  "TXTTTTXT": "Tài",
-  "XTTTTXTT": "Tài",
-  "TTTTXTTT": "Xỉu",
-  "TTTXTTTX": "Xỉu",
-  "TTXTTTXX": "Tài",
-  "TXTTTXXT": "Tài",
-  "XTTTXXTT": "Tài",
-  "TTTXXTTT": "Xỉu",
-  "TTXXTTTX": "Tài",
-  "TXXTTTXT": "Tài",
-  "XXTTTXTT": "Tài",
-  "XTTTXTTT": "Tài",
-  "TTTXTTTT": "Xỉu",
-  "TTXTTTTX": "Xỉu",
-  "TXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Tài",
-  "TTTTXXXT": "Xỉu",
-  "TTTXXXTX": "Xỉu",
-  "TTXXXTXX": "Tài",
-  "TXXXTXXT": "Xỉu",
-  "XXXTXXTX": "Xỉu",
-  "XXTXXTXX": "Tài",
-  "XTXXTXXT": "Tài",
-  "TXXTXXTT": "Xỉu",
-  "XXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Tài",
-  "TXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Xỉu",
-  "XTTXXTXX": "Tài",
-  "TTXXTXXT": "Xỉu",
-  "TXXTXXTX": "Tài",
-  "XXTXXTXT": "Xỉu",
-  "XTXXTXTX": "Tài",
-  "TXXTXTXT": "Tài",
-  "XXTXTXTT": "Xỉu",
-  "XTXTXTTX": "Xỉu",
-  "TXTXTTXX": "Tài",
-  "XTXTTXXT": "Xỉu",
-  "TXTTXXTX": "Tài",
-  "XTTXXTXT": "Tài",
-  "TTXXTXTT": "Tài",
-  "TXXTXTTT": "Tài",
-  "XXTXTTTT": "Xỉu",
-  "XTXTTTTX": "Xỉu",
-  "TXTTTTXX": "Tài",
-  "XTTTTXXT": "Tài",
-  "TTTTXXTT": "Tài",
-  "TTTXXTTT": "Tài",
-  "TTXXTTTT": "Tài",
-  "TXXTTTTT": "Xỉu",
-  "XXTTTTTX": "Xỉu",
-  "XTTTTTXX": "Tài",
-  "TTTTTXXT": "Xỉu",
-  "TTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Tài",
-  "TXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Xỉu",
-  "XTXXXTXX": "Xỉu",
-  "TXXXTXXX": "Tài",
-  "XXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Xỉu",
-  "XTXXXTXX": "Tài",
-  "TXXXTXXT": "Tài",
-  "XXXTXXTT": "Xỉu",
-  "XXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Tài",
-  "TXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Tài",
-  "XTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Xỉu",
-  "TXXTXTXX": "Tài",
-  "XXTXTXXT": "Xỉu",
-  "XTXTXXTX": "Xỉu",
-  "TXTXXTXX": "Xỉu",
-  "XTXXTXXX": "Xỉu",
-  "TXXTXXXX": "Xỉu",
-  "XXTXXXXX": "Tài",
-  "XTXXXXXT": "Tài",
-  "TXXXXXTT": "Xỉu",
-  "XXXXXTTX": "Tài",
-  "XXXXTTXT": "Xỉu",
-  "XXXTTXTX": "Tài",
-  "XXTTXTXT": "Tài",
-  "XTTXTXTT": "Tài",
-  "TTXTXTTT": "Xỉu",
-  "TXTXTTTX": "Tài",
-  "XTXTTTXT": "Xỉu",
-  "TXTTTXTX": "Xỉu",
-  "XTTTXTXX": "Xỉu",
-  "TTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Tài",
-  "TXTXXXXT": "Xỉu",
-  "XTXXXXTX": "Tài",
-  "TXXXXTXT": "Xỉu",
-  "XXXXTXTX": "Tài",
-  "XXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Xỉu",
-  "XTXTXTXX": "Xỉu",
-  "TXTXTXXX": "Tài",
-  "XTXTXXXT": "Xỉu",
-  "TXTXXXTX": "Tài",
-  "XTXXXTXT": "Xỉu",
-  "TXXXTXTX": "Xỉu",
-  "XXXTXTXX": "Tài",
-  "XXTXTXXT": "Tài",
-  "XTXTXXTT": "Tài",
-  "TXTXXTTT": "Tài",
-  "XTXXTTTT": "Tài",
-  "TXXTTTTT": "Tài",
-  "XXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Tài",
-  "TTTTTTXT": "Tài",
-  "TTTTTXTT": "Xỉu",
-  "TTTTXTTX": "Xỉu",
-  "TTTXTTXX": "Tài",
-  "TTXTTXXT": "Tài",
-  "TXTTXXTT": "Tài",
-  "XTTXXTTT": "Tài",
-  "TTXXTTTT": "Tài",
-  "TXXTTTTT": "Xỉu",
-  "XXTTTTTX": "Xỉu",
-  "XTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Tài",
-  "TTTTXXXT": "Tài",
-  "TTTXXXTT": "Xỉu",
-  "TTXXXTTX": "Tài",
-  "TXXXTTXT": "Tài",
-  "XXXTTXTT": "Tài",
-  "XXTTXTTT": "Xỉu",
-  "XTTXTTTX": "Tài",
-  "TTXTTTXT": "Tài",
-  "TXTTTXTT": "Xỉu",
-  "XTTTXTTX": "Xỉu",
-  "TTTXTTXX": "Tài",
-  "TTXTTXXT": "Xỉu",
-  "TXTTXXTX": "Tài",
-  "XTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Tài",
-  "TXXTXTXT": "Tài",
-  "XXTXTXTT": "Xỉu",
-  "XTXTXTTX": "Xỉu",
-  "TXTXTTXX": "Tài",
-  "XTXTTXXT": "Xỉu",
-  "TXTTXXTX": "Tài",
-  "XTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Xỉu",
-  "TXXTXTXX": "Xỉu",
-  "XXTXTXXX": "Tài",
-  "XTXTXXXT": "Xỉu",
-  "TXTXXXTX": "Tài",
-  "XTXXXTXT": "Tài",
-  "TXXXTXTT": "Tài",
-  "XXXTXTTT": "Tài",
-  "XXTXTTTT": "Tài",
-  "XTXTTTTT": "Xỉu",
-  "TXTTTTTX": "Xỉu",
-  "XTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Tài",
-  "TTTTXXXT": "Tài",
-  "TTTXXXTT": "Tài",
-  "TTXXXTTT": "Xỉu",
-  "TXXXTTTX": "Xỉu",
-  "XXXTTTXX": "Tài",
-  "XXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Tài",
-  "TTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Xỉu",
-  "TXXTXTXX": "Tài",
-  "XXTXTXXT": "Tài",
-  "XTXTXXTT": "Xỉu",
-  "TXTXXTTX": "Tài",
-  "XTXXTTXT": "Tài",
-  "TXXTTXTT": "Tài",
-  "XXTTXTTT": "Tài",
-  "XTTXTTTT": "Tài",
-  "TTXTTTTT": "Xỉu",
-  "TXTTTTTX": "Tài",
-  "XTTTTTXT": "Tài",
-  "TTTTTXTT": "Tài",
-  "TTTTXTTT": "Tài",
-  "TTTXTTTT": "Xỉu",
-  "TTXTTTTX": "Xỉu",
-  "TXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Tài",
-  "TTTXXXXT": "Xỉu",
-  "TTXXXXTX": "Tài",
-  "TXXXXTXT": "Tài",
-  "XXXXTXTT": "Tài",
-  "XXXTXTTT": "Xỉu",
-  "XXTXTTTX": "Xỉu",
-  "XTXTTTXX": "Xỉu",
-  "TXTTTXXX": "Tài",
-  "XTTTXXXT": "Tài",
-  "TTTXXXTT": "Tài",
-  "TTXXXTTT": "Xỉu",
-  "TXXXTTTX": "Tài",
-  "XXXTTTXT": "Xỉu",
-  "XXTTTXTX": "Tài",
-  "XTTTXTXT": "Xỉu",
-  "TTTXTXTX": "Tài",
-  "TTXTXTXT": "Xỉu",
-  "TXTXTXTX": "Tài",
-  "XTXTXTXT": "Tài",
-  "TXTXTXTT": "Tài",
-  "XTXTXTTT": "Xỉu",
-  "TXTXTTTX": "Tài",
-  "XTXTTTXT": "Xỉu",
-  "TXTTTXTX": "Tài",
-  "XTTTXTXT": "Tài",
-  "TTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Xỉu",
-  "TXTXTTXX": "Tài",
-  "XTXTTXXT": "Tài",
-  "TXTTXXTT": "Tài",
-  "XTTXXTTT": "Xỉu",
-  "TTXXTTTX": "Tài",
-  "TXXTTTXT": "Xỉu",
-  "XXTTTXTX": "Xỉu",
-  "XTTTXTXX": "Xỉu",
-  "TTTXTXXX": "Tài",
-  "TTXTXXXT": "Xỉu",
-  "TXTXXXTX": "Xỉu",
-  "XTXXXTXX": "Tài",
-  "TXXXTXXT": "Xỉu",
-  "XXXTXXTX": "Tài",
-  "XXTXXTXT": "Tài",
-  "XTXXTXTT": "Xỉu",
-  "TXXTXTTX": "Xỉu",
-  "XXTXTTXX": "Xỉu",
-  "XTXTTXXX": "Tài",
-  "TXTTXXXT": "Tài",
-  "XTTXXXTT": "Tài",
-  "TTXXXTTT": "Xỉu",
-  "TXXXTTTX": "Tài",
-  "XXXTTTXT": "Tài",
-  "XXTTTXTT": "Tài",
-  "XTTTXTTT": "Tài",
-  "TTTXTTTT": "Xỉu",
-  "TTXTTTTX": "Xỉu",
-  "TXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Tài",
-  "TTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Tài",
-  "XXXXXTXT": "Xỉu",
-  "XXXXTXTX": "Tài",
-  "XXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Tài",
-  "XTXTXTXT": "Tài",
-  "TXTXTXTT": "Xỉu",
-  "XTXTXTTX": "Xỉu",
-  "TXTXTTXX": "Tài",
-  "XTXTTXXT": "Xỉu",
-  "TXTTXXTX": "Xỉu",
-  "XTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Xỉu",
-  "TXXTXXXX": "Tài",
-  "XXTXXXXT": "Tài",
-  "XTXXXXTT": "Tài",
-  "TXXXXTTT": "Xỉu",
-  "XXXXTTTX": "Tài",
-  "XXXTTTXT": "Xỉu",
-  "XXTTTXTX": "Xỉu",
-  "XTTTXTXX": "Xỉu",
-  "TTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Xỉu",
-  "TXTXXXXX": "Tài",
-  "XTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Tài",
-  "XXXXXTXT": "Tài",
-  "XXXXTXTT": "Xỉu",
-  "XXXTXTTX": "Xỉu",
-  "XXTXTTXX": "Xỉu",
-  "XTXTTXXX": "Tài",
-  "TXTTXXXT": "Tài",
-  "XTTXXXTT": "Xỉu",
-  "TTXXXTTX": "Tài",
-  "TXXXTTXT": "Tài",
-  "XXXTTXTT": "Tài",
-  "XXTTXTTT": "Xỉu",
-  "XTTXTTTX": "Tài",
-  "TTXTTTXT": "Tài",
-  "TXTTTXTT": "Tài",
-  "XTTTXTTT": "Xỉu",
-  "TTTXTTTX": "Tài",
-  "TTXTTTXT": "Tài",
-  "TXTTTXTT": "Tài",
-  "XTTTXTTT": "Xỉu",
-  "TTTXTTTX": "Tài",
-  "TTXTTTXT": "Xỉu",
-  "TXTTTXTX": "Tài",
-  "XTTTXTXT": "Tài",
-  "TTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Tài",
-  "TXTXTTXT": "Xỉu",
-  "XTXTTXTX": "Tài",
-  "TXTTXTXT": "Xỉu",
-  "XTTXTXTX": "Tài",
-  "TTXTXTXT": "Xỉu",
-  "TXTXTXTX": "Tài",
-  "XTXTXTXT": "Tài",
-  "TXTXTXTT": "Xỉu",
-  "XTXTXTTX": "Xỉu",
-  "TXTXTTXX": "Tài",
-  "XTXTTXXT": "Xỉu",
-  "TXTTXXTX": "Tài",
-  "XTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Tài",
-  "TXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Tài",
-  "XTXTXTXT": "Tài",
-  "TXTXTXTT": "Xỉu",
-  "XTXTXTTX": "Xỉu",
-  "TXTXTTXX": "Xỉu",
-  "XTXTTXXX": "Xỉu",
-  "TXTTXXXX": "Tài",
-  "XTTXXXXT": "Xỉu",
-  "TTXXXXTX": "Tài",
-  "TXXXXTXT": "Xỉu",
-  "XXXXTXTX": "Tài",
-  "XXXTXTXT": "Tài",
-  "XXTXTXTT": "Xỉu",
-  "XTXTXTTX": "Tài",
-  "TXTXTTXT": "Xỉu",
-  "XTXTTXTX": "Tài",
-  "TXTTXTXT": "Xỉu",
-  "XTTXTXTX": "Xỉu",
-  "TTXTXTXX": "Tài",
-  "TXTXTXXT": "Tài",
-  "XTXTXXTT": "Xỉu",
-  "TXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Tài",
-  "TXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Xỉu",
-  "XTTXXTXX": "Tài",
-  "TTXXTXXT": "Tài",
-  "TXXTXXTT": "Tài",
-  "XXTXXTTT": "Xỉu",
-  "XTXXTTTX": "Xỉu",
-  "TXXTTTXX": "Tài",
-  "XXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Xỉu",
-  "TXXTXXXX": "Xỉu",
-  "XXTXXXXX": "Xỉu",
-  "XTXXXXXX": "Tài",
-  "TXXXXXXT": "Xỉu",
-  "XXXXXXTX": "Xỉu",
-  "XXXXXTXX": "Tài",
-  "XXXXTXXT": "Tài",
-  "XXXTXXTT": "Tài",
-  "XXTXXTTT": "Xỉu",
-  "XTXXTTTX": "Xỉu",
-  "TXXTTTXX": "Tài",
-  "XXTTTXXT": "Tài",
-  "XTTTXXTT": "Xỉu",
-  "TTTXXTTX": "Xỉu",
-  "TTXXTTXX": "Tài",
-  "TXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Tài",
-  "XTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Tài",
-  "TXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Xỉu",
-  "XTXTXTXX": "Tài",
-  "TXTXTXXT": "Tài",
-  "XTXTXXTT": "Xỉu",
-  "TXTXXTTX": "Tài",
-  "XTXXTTXT": "Tài",
-  "TXXTTXTT": "Xỉu",
-  "XXTTXTTX": "Tài",
-  "XTTXTTXT": "Tài",
-  "TTXTTXTT": "Tài",
-  "TXTTXTTT": "Tài",
-  "XTTXTTTT": "Xỉu",
-  "TTXTTTTX": "Tài",
-  "TXTTTTXT": "Tài",
-  "XTTTTXTT": "Xỉu",
-  "TTTTXTTX": "Tài",
-  "TTTXTTXT": "Tài",
-  "TTXTTXTT": "Tài",
-  "TXTTXTTT": "Tài",
-  "XTTXTTTT": "Xỉu",
-  "TTXTTTTX": "Tài",
-  "TXTTTTXT": "Xỉu",
-  "XTTTTXTX": "Tài",
-  "TTTTXTXT": "Tài",
-  "TTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Xỉu",
-  "TXTXTTXX": "Tài",
-  "XTXTTXXT": "Xỉu",
-  "TXTTXXTX": "Tài",
-  "XTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Xỉu",
-  "TXXTXTXX": "Xỉu",
-  "XXTXTXXX": "Xỉu",
-  "XTXTXXXX": "Xỉu",
-  "TXTXXXXX": "Xỉu",
-  "XTXXXXXX": "Tài",
-  "TXXXXXXT": "Tài",
-  "XXXXXXTT": "Tài",
-  "XXXXXTTT": "Tài",
-  "XXXXTTTT": "Tài",
-  "XXXTTTTT": "Xỉu",
-  "XXTTTTTX": "Tài",
-  "XTTTTTXT": "Xỉu",
-  "TTTTTXTX": "Xỉu",
-  "TTTTXTXX": "Tài",
-  "TTTXTXXT": "Tài",
-  "TTXTXXTT": "Tài",
-  "TXTXXTTT": "Tài",
-  "XTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Xỉu",
-  "XXTTTTXX": "Tài",
-  "XTTTTXXT": "Tài",
-  "TTTTXXTT": "Xỉu",
-  "TTTXXTTX": "Tài",
-  "TTXXTTXT": "Xỉu",
-  "TXXTTXTX": "Tài",
-  "XXTTXTXT": "Tài",
-  "XTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Tài",
-  "TXTXTTXT": "Xỉu",
-  "XTXTTXTX": "Tài",
-  "TXTTXTXT": "Xỉu",
-  "XTTXTXTX": "Xỉu",
-  "TTXTXTXX": "Tài",
-  "TXTXTXXT": "Xỉu",
-  "XTXTXXTX": "Xỉu",
-  "TXTXXTXX": "Tài",
-  "XTXXTXXT": "Tài",
-  "TXXTXXTT": "Tài",
-  "XXTXXTTT": "Tài",
-  "XTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Tài",
-  "XXTTTTXT": "Xỉu",
-  "XTTTTXTX": "Tài",
-  "TTTTXTXT": "Tài",
-  "TTTXTXTT": "Tài",
-  "TTXTXTTT": "Xỉu",
-  "TXTXTTTX": "Tài",
-  "XTXTTTXT": "Xỉu",
-  "TXTTTXTX": "Tài",
-  "XTTTXTXT": "Tài",
-  "TTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Xỉu",
-  "TXTXTTXX": "Xỉu",
-  "XTXTTXXX": "Xỉu",
-  "TXTTXXXX": "Tài",
-  "XTTXXXXT": "Xỉu",
-  "TTXXXXTX": "Xỉu",
-  "TXXXXTXX": "Tài",
-  "XXXXTXXT": "Tài",
-  "XXXTXXTT": "Xỉu",
-  "XXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Tài",
-  "TXXTTXXT": "Tài",
-  "XXTTXXTT": "Xỉu",
-  "XTTXXTTX": "Xỉu",
-  "TTXXTTXX": "Tài",
-  "TXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Tài",
-  "XTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Xỉu",
-  "TXXTXTXX": "Tài",
-  "XXTXTXXT": "Tài",
-  "XTXTXXTT": "Xỉu",
-  "TXTXXTTX": "Tài",
-  "XTXXTTXT": "Tài",
-  "TXXTTXTT": "Xỉu",
-  "XXTTXTTX": "Xỉu",
-  "XTTXTTXX": "Xỉu",
-  "TTXTTXXX": "Xỉu",
-  "TXTTXXXX": "Tài",
-  "XTTXXXXT": "Xỉu",
-  "TTXXXXTX": "Xỉu",
-  "TXXXXTXX": "Tài",
-  "XXXXTXXT": "Tài",
-  "XXXTXXTT": "Tài",
-  "XXTXXTTT": "Tài",
-  "XTXXTTTT": "Tài",
-  "TXXTTTTT": "Tài",
-  "XXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Tài",
-  "TTTTTTXT": "Tài",
-  "TTTTTXTT": "Xỉu",
-  "TTTTXTTX": "Tài",
-  "TTTXTTXT": "Xỉu",
-  "TTXTTXTX": "Tài",
-  "TXTTXTXT": "Tài",
-  "XTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Xỉu",
-  "TXTXTTXX": "Xỉu",
-  "XTXTTXXX": "Tài",
-  "TXTTXXXT": "Tài",
-  "XTTXXXTT": "Xỉu",
-  "TTXXXTTX": "Xỉu",
-  "TXXXTTXX": "Xỉu",
-  "XXXTTXXX": "Tài",
-  "XXTTXXXT": "Tài",
-  "XTTXXXTT": "Xỉu",
-  "TTXXXTTX": "Xỉu",
-  "TXXXTTXX": "Xỉu",
-  "XXXTTXXX": "Xỉu",
-  "XXTTXXXX": "Xỉu",
-  "XTTXXXXX": "Xỉu",
-  "TTXXXXXX": "Tài",
-  "TXXXXXXT": "Tài",
-  "XXXXXXTT": "Tài",
-  "XXXXXTTT": "Tài",
-  "XXXXTTTT": "Tài",
-  "XXXTTTTT": "Tài",
-  "XXTTTTTT": "Tài",
-  "XTTTTTTT": "Xỉu",
-  "TTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Tài",
-  "TTTTTXXT": "Xỉu",
-  "TTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Tài",
-  "TTXXTXXT": "Xỉu",
-  "TXXTXXTX": "Xỉu",
-  "XXTXXTXX": "Xỉu",
-  "XTXXTXXX": "Tài",
-  "TXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Tài",
-  "XTXXXTXT": "Tài",
-  "TXXXTXTT": "Xỉu",
-  "XXXTXTTX": "Tài",
-  "XXTXTTXT": "Tài",
-  "XTXTTXTT": "Tài",
-  "TXTTXTTT": "Xỉu",
-  "XTTXTTTX": "Xỉu",
-  "TTXTTTXX": "Xỉu",
-  "TXTTTXXX": "Xỉu",
-  "XTTTXXXX": "Tài",
-  "TTTXXXXT": "Tài",
-  "TTXXXXTT": "Xỉu",
-  "TXXXXTTX": "Tài",
-  "XXXXTTXT": "Tài",
-  "XXXTTXTT": "Xỉu",
-  "XXTTXTTX": "Xỉu",
-  "XTTXTTXX": "Tài",
-  "TTXTTXXT": "Xỉu",
-  "TXTTXXTX": "Xỉu",
-  "XTTXXTXX": "Tài",
-  "TTXXTXXT": "Tài",
-  "TXXTXXTT": "Tài",
-  "XXTXXTTT": "Tài",
-  "XTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Tài",
-  "XXTTTTXT": "Tài",
-  "XTTTTXTT": "Xỉu",
-  "TTTTXTTX": "Tài",
-  "TTTXTTXT": "Tài",
-  "TTXTTXTT": "Tài",
-  "TXTTXTTT": "Tài",
-  "XTTXTTTT": "Tài",
-  "TTXTTTTT": "Xỉu",
-  "TXTTTTTX": "Xỉu",
-  "XTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Tài",
-  "TTTXXXXT": "Tài",
-  "TTXXXXTT": "Xỉu",
-  "TXXXXTTX": "Xỉu",
-  "XXXXTTXX": "Xỉu",
-  "X": "Xỉu",
-  "XX": "Tài",
-  "XXT": "Tài",
-  "XXTT": "Tài",
-  "XXTTT": "Tài",
-  "XXTTTT": "Xỉu",
-  "XXTTTTX": "Xỉu",
-  "XXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Xỉu",
-  "TTXXXXXX": "Tài",
-  "TXXXXXXT": "Tài",
-  "XXXXXXTT": "Tài",
-  "XXXXXTTT": "Tài",
-  "XXXXTTTT": "Tài",
-  "XXXTTTTT": "Tài",
-  "XXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Tài",
-  "TTTTTXXT": "Xỉu",
-  "TTTTXXTX": "Tài",
-  "TTTXXTXT": "Tài",
-  "TTXXTXTT": "Tài",
-  "TXXTXTTT": "Xỉu",
-  "XXTXTTTX": "Xỉu",
-  "XTXTTTXX": "Xỉu",
-  "X": "Tài",
-  "XT": "Xỉu",
-  "XTX": "Xỉu",
-  "XTXX": "Tài",
-  "XTXXT": "Tài",
-  "XTXXTT": "Tài",
-  "XTXXTTT": "Tài",
-  "XTXXTTTT": "Tài",
-  "TXXTTTTT": "Tài",
-  "XXTTTTTT": "Tài",
-  "XTTTTTTT": "Tài",
-  "TTTTTTTT": "Tài",
-  "TTTTTTTT": "Xỉu",
-  "TTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Tài",
-  "TTTXXXXT": "Xỉu",
-  "TTXXXXTX": "Tài",
-  "TXXXXTXT": "Tài",
-  "XXXXTXTT": "Xỉu",
-  "XXXTXTTX": "Xỉu",
-  "XXTXTTXX": "Xỉu",
-  "XTXTTXXX": "Tài",
-  "TXTTXXXT": "Tài",
-  "XTTXXXTT": "Xỉu",
-  "TTXXXTTX": "Xỉu",
-  "TXXXTTXX": "Tài",
-  "XXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Xỉu",
-  "XTTXXTXX": "Tài",
-  "TTXXTXXT": "Tài",
-  "TXXTXXTT": "Xỉu",
-  "XXTXXTTX": "Tài",
-  "XTXXTTXT": "Tài",
-  "TXXTTXTT": "Xỉu",
-  "XXTTXTTX": "Xỉu",
-  "XTTXTTXX": "Tài",
-  "TTXTTXXT": "Xỉu",
-  "TXTTXXTX": "Xỉu",
-  "XTTXXTXX": "Tài",
-  "TTXXTXXT": "Xỉu",
-  "TXXTXXTX": "Tài",
-  "XXTXXTXT": "Xỉu",
-  "XTXXTXTX": "Xỉu",
-  "TXXTXTXX": "Xỉu",
-  "XXTXTXXX": "Tài",
-  "XTXTXXXT": "Tài",
-  "TXTXXXTT": "Tài",
-  "XTXXXTTT": "Xỉu",
-  "TXXXTTTX": "Xỉu",
-  "XXXTTTXX": "Xỉu",
-  "XXTTTXXX": "Tài",
-  "XTTTXXXT": "Tài",
-  "TTTXXXTT": "Xỉu",
-  "TTXXXTTX": "Tài",
-  "TXXXTTXT": "Tài",
-  "XXXTTXTT": "Tài",
-  "XXTTXTTT": "Tài",
-  "XTTXTTTT": "Tài",
-  "TTXTTTTT": "Tài",
-  "TXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Xỉu",
-  "TTXXXXXX": "Tài",
-  "TXXXXXXT": "Tài",
-  "XXXXXXTT": "Xỉu",
-  "XXXXXTTX": "Tài",
-  "XXXXTTXT": "Xỉu",
-  "XXXTTXTX": "Tài",
-  "XXTTXTXT": "Xỉu",
-  "XTTXTXTX": "Xỉu",
-  "TTXTXTXX": "Xỉu",
-  "TXTXTXXX": "Xỉu",
-  "XTXTXXXX": "Xỉu",
-  "TXTXXXXX": "Xỉu",
-  "XTXXXXXX": "Tài",
-  "TXXXXXXT": "Tài",
-  "XXXXXXTT": "Tài",
-  "XXXXXTTT": "Tài",
-  "XXXXTTTT": "Tài",
-  "XXXTTTTT": "Xỉu",
-  "XXTTTTTX": "Tài",
-  "XTTTTTXT": "Xỉu",
-  "TTTTTXTX": "Xỉu",
-  "TTTTXTXX": "Xỉu",
-  "TTTXTXXX": "Tài",
-  "TTXTXXXT": "Xỉu",
-  "TXTXXXTX": "Tài",
-  "XTXXXTXT": "Xỉu",
-  "TXXXTXTX": "Tài",
-  "XXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Xỉu",
-  "XTXTXTXX": "Xỉu",
-  "TXTXTXXX": "Xỉu",
-  "XTXTXXXX": "Xỉu",
-  "TXTXXXXX": "Tài",
-  "XTXXXXXT": "Tài",
-  "TXXXXXTT": "Tài",
-  "XXXXXTTT": "Xỉu",
-  "XXXXTTTX": "Xỉu",
-  "XXXTTTXX": "Xỉu",
-  "XXTTTXXX": "Xỉu",
-  "XTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Tài",
-  "TTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Xỉu",
-  "XXXXXTXX": "Xỉu",
-  "XXXXTXXX": "Xỉu",
-  "XXXTXXXX": "Tài",
-  "XXTXXXXT": "Tài",
-  "XTXXXXTT": "Tài",
-  "TXXXXTTT": "Xỉu",
-  "XXXXTTTX": "Tài",
-  "XXXTTTXT": "Xỉu",
-  "XXTTTXTX": "Tài",
-  "XTTTXTXT": "Xỉu",
-  "TTTXTXTX": "Tài",
-  "TTXTXTXT": "Xỉu",
-  "TXTXTXTX": "Xỉu",
-  "XTXTXTXX": "Tài",
-  "TXTXTXXT": "Xỉu",
-  "XTXTXXTX": "Tài",
-  "TXTXXTXT": "Xỉu",
-  "XTXXTXTX": "Tài",
-  "TXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Xỉu",
-  "XTXTXTXX": "Tài",
-  "TXTXTXXT": "Xỉu",
-  "XTXTXXTX": "Tài",
-  "TXTXXTXT": "Tài",
-  "XTXXTXTT": "Xỉu",
-  "TXXTXTTX": "Xỉu",
-  "XXTXTTXX": "Tài",
-  "XTXTTXXT": "Xỉu",
-  "TXTTXXTX": "Tài",
-  "XTTXXTXT": "Tài",
-  "TTXXTXTT": "Tài",
-  "TXXTXTTT": "Tài",
-  "XXTXTTTT": "Xỉu",
-  "XTXTTTTX": "Xỉu",
-  "TXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Tài",
-  "TTTTXXXT": "Xỉu",
-  "TTTXXXTX": "Xỉu",
-  "TTXXXTXX": "Xỉu",
-  "TXXXTXXX": "Tài",
-  "XXXTXXXT": "Tài",
-  "XXTXXXTT": "Tài",
-  "XTXXXTTT": "Tài",
-  "TXXXTTTT": "Xỉu",
-  "XXXTTTTX": "Tài",
-  "XXTTTTXT": "Xỉu",
-  "XTTTTXTX": "Xỉu",
-  "TTTTXTXX": "Xỉu",
-  "TTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Tài",
-  "TXTXXXXT": "Tài",
-  "XTXXXXTT": "Tài",
-  "TXXXXTTT": "Tài",
-  "XXXXTTTT": "Xỉu",
-  "XXXTTTTX": "Xỉu",
-  "XXTTTTXX": "Tài",
-  "XTTTTXXT": "Xỉu",
-  "TTTTXXTX": "Tài",
-  "TTTXXTXT": "Tài",
-  "TTXXTXTT": "Tài",
-  "TXXTXTTT": "Tài",
-  "XXTXTTTT": "Tài",
-  "XTXTTTTT": "Tài",
-  "TXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Tài",
-  "TTTTTXXT": "Tài",
-  "TTTTXXTT": "Xỉu",
-  "TTTXXTTX": "Tài",
-  "TTXXTTXT": "Xỉu",
-  "TXXTTXTX": "Xỉu",
-  "XXTTXTXX": "Tài",
-  "XTTXTXXT": "Tài",
-  "TTXTXXTT": "Tài",
-  "TXTXXTTT": "Xỉu",
-  "XTXXTTTX": "Xỉu",
-  "TXXTTTXX": "Xỉu",
-  "XXTTTXXX": "Tài",
-  "XTTTXXXT": "Tài",
-  "TTTXXXTT": "Xỉu",
-  "TTXXXTTX": "Tài",
-  "TXXXTTXT": "Xỉu",
-  "XXXTTXTX": "Tài",
-  "XXTTXTXT": "Xỉu",
-  "XTTXTXTX": "Tài",
-  "TTXTXTXT": "Tài",
-  "TXTXTXTT": "Xỉu",
-  "XTXTXTTX": "Xỉu",
-  "TXTXTTXX": "Xỉu",
-  "XTXTTXXX": "Xỉu",
-  "TXTTXXXX": "Xỉu",
-  "XTTXXXXX": "Xỉu",
-  "TTXXXXXX": "Tài",
-  "TXXXXXXT": "Tài",
-  "XXXXXXTT": "Xỉu",
-  "XXXXXTTX": "Xỉu",
-  "XXXXTTXX": "Tài",
-  "XXXTTXXT": "Tài",
-  "XXTTXXTT": "Tài",
-  "XTTXXTTT": "Tài",
-  "TTXXTTTT": "Tài",
-  "TXXTTTTT": "Xỉu",
-  "XXTTTTTX": "Xỉu",
-  "XTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Tài",
-  "TTXXXXXT": "Tài",
-  "TXXXXXTT": "Xỉu",
-  "XXXXXTTX": "Tài",
-  "XXXXTTXT": "Xỉu",
-  "XXXTTXTX": "Xỉu",
-  "XXTTXTXX": "Xỉu",
-  "XTTXTXXX": "Tài",
-  "TTXTXXXT": "Xỉu",
-  "TXTXXXTX": "Tài",
-  "XTXXXTXT": "Xỉu",
-  "TXXXTXTX": "Tài",
-  "XXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Tài",
-  "XTXTXTXT": "Xỉu",
-  "TXTXTXTX": "Xỉu",
-  "XTXTXTXX": "Xỉu",
-  "TXTXTXXX": "Tài",
-  "XTXTXXXT": "Xỉu",
-  "TXTXXXTX": "Tài",
-  "XTXXXTXT": "Xỉu",
-  "TXXXTXTX": "Tài",
-  "XXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Tài",
-  "XTXTXTXT": "Tài",
-  "TXTXTXTT": "Tài",
-  "XTXTXTTT": "Tài",
-  "TXTXTTTT": "Xỉu",
-  "XTXTTTTX": "Tài",
-  "TXTTTTXT": "Xỉu",
-  "XTTTTXTX": "Xỉu",
-  "TTTTXTXX": "Tài",
-  "TTTXTXXT": "Xỉu",
-  "TTXTXXTX": "Xỉu",
-  "TXTXXTXX": "Xỉu",
-  "XTXXTXXX": "Tài",
-  "TXXTXXXT": "Tài",
-  "XXTXXXTT": "Tài",
-  "XTXXXTTT": "Xỉu",
-  "TXXXTTTX": "Xỉu",
-  "XXXTTTXX": "Xỉu",
-  "XXTTTXXX": "Tài",
-  "XTTTXXXT": "Tài",
-  "TTTXXXTT": "Tài",
-  "TTXXXTTT": "Xỉu",
-  "TXXXTTTX": "Xỉu",
-  "XXXTTTXX": "Tài",
-  "XXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Tài",
-  "TTTXXTXT": "Tài",
-  "TTXXTXTT": "Tài",
-  "TXXTXTTT": "Tài",
-  "XXTXTTTT": "Tài",
-  "XTXTTTTT": "Tài",
-  "TXTTTTTT": "Tài",
-  "XTTTTTTT": "Tài",
-  "TTTTTTTT": "Tài",
-  "TTTTTTTT": "Tài",
-  "TTTTTTTT": "Xỉu",
-  "TTTTTTTX": "Tài",
-  "TTTTTTXT": "Xỉu",
-  "TTTTTXTX": "Xỉu",
-  "TTTTXTXX": "Tài",
-  "TTTXTXXT": "Tài",
-  "TTXTXXTT": "Xỉu",
-  "TXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Xỉu",
-  "TXXTTXXX": "Xỉu",
-  "XXTTXXXX": "Tài",
-  "XTTXXXXT": "Xỉu",
-  "TTXXXXTX": "Xỉu",
-  "TXXXXTXX": "Tài",
-  "XXXXTXXT": "Xỉu",
-  "XXXTXXTX": "Tài",
-  "XXTXXTXT": "Tài",
-  "XTXXTXTT": "Xỉu",
-  "TXXTXTTX": "Tài",
-  "XXTXTTXT": "Tài",
-  "XTXTTXTT": "Tài",
-  "TXTTXTTT": "Xỉu",
-  "XTTXTTTX": "Xỉu",
-  "TTXTTTXX": "Tài",
-  "TXTTTXXT": "Tài",
-  "XTTTXXTT": "Xỉu",
-  "TTTXXTTX": "Tài",
-  "TTXXTTXT": "Tài",
-  "TXXTTXTT": "Xỉu",
-  "XXTTXTTX": "Xỉu",
-  "XTTXTTXX": "Tài",
-  "TTXTTXXT": "Tài",
-  "TXTTXXTT": "Xỉu",
-  "XTTXXTTX": "Tài",
-  "TTXXTTXT": "Tài",
-  "TXXTTXTT": "Tài",
-  "XXTTXTTT": "Xỉu",
-  "XTTXTTTX": "Xỉu",
-  "TTXTTTXX": "Tài",
-  "TXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Tài",
-  "TTXXTXXT": "Xỉu",
-  "TXXTXXTX": "Xỉu",
-  "XXTXXTXX": "Xỉu",
-  "XTXXTXXX": "Tài",
-  "TXXTXXXT": "Tài",
-  "XXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Tài",
-  "TXXXTTXT": "Tài",
-  "XXXTTXTT": "Xỉu",
-  "XXTTXTTX": "Xỉu",
-  "XTTXTTXX": "Tài",
-  "TTXTTXXT": "Xỉu",
-  "TXTTXXTX": "Xỉu",
-  "XTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Tài",
-  "TXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Xỉu",
-  "XTXXXTXX": "Xỉu",
-  "TXXXTXXX": "Xỉu",
-  "XXXTXXXX": "Tài",
-  "XXTXXXXT": "Xỉu",
-  "XTXXXXTX": "Tài",
-  "TXXXXTXT": "Tài",
-  "XXXXTXTT": "Tài",
-  "XXXTXTTT": "Xỉu",
-  "XXTXTTTX": "Xỉu",
-  "XTXTTTXX": "Xỉu",
-  "TXTTTXXX": "Xỉu",
-  "XTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Tài",
-  "TTXXXXXT": "Tài",
-  "TXXXXXTT": "Tài",
-  "XXXXXTTT": "Tài",
-  "XXXXTTTT": "Tài",
-  "XXXTTTTT": "Tài",
-  "XXTTTTTT": "Tài",
-  "XTTTTTTT": "Tài",
-  "TTTTTTTT": "Xỉu",
-  "TTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Tài",
-  "TTTTXXXT": "Tài",
-  "TTTXXXTT": "Xỉu",
-  "TTXXXTTX": "Tài",
-  "TXXXTTXT": "Xỉu",
-  "XXXTTXTX": "Xỉu",
-  "XXTTXTXX": "Tài",
-  "XTTXTXXT": "Xỉu",
-  "TTXTXXTX": "Tài",
-  "TXTXXTXT": "Tài",
-  "XTXXTXTT": "Tài",
-  "TXXTXTTT": "Tài",
-  "XXTXTTTT": "Tài",
-  "XTXTTTTT": "Tài",
-  "TXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Tài",
-  "TTTTTTXT": "Xỉu",
-  "TTTTTXTX": "Xỉu",
-  "TTTTXTXX": "Xỉu",
-  "TTTXTXXX": "Tài",
-  "TTXTXXXT": "Tài",
-  "TXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Tài",
-  "TXXXTTXT": "Tài",
-  "XXXTTXTT": "Tài",
-  "XXTTXTTT": "Xỉu",
-  "XTTXTTTX": "Tài",
-  "TTXTTTXT": "Tài",
-  "TXTTTXTT": "Xỉu",
-  "XTTTXTTX": "Tài",
-  "TTTXTTXT": "Tài",
-  "TTXTTXTT": "Xỉu",
-  "TXTTXTTX": "Xỉu",
-  "XTTXTTXX": "Xỉu",
-  "TTXTTXXX": "Xỉu",
-  "TXTTXXXX": "Tài",
-  "XTTXXXXT": "Xỉu",
-  "TTXXXXTX": "Xỉu",
-  "TXXXXTXX": "Tài",
-  "XXXXTXXT": "Xỉu",
-  "XXXTXXTX": "Xỉu",
-  "XXTXXTXX": "Xỉu",
-  "XTXXTXXX": "Tài",
-  "TXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Xỉu",
-  "XTXXXTXX": "Tài",
-  "TXXXTXXT": "Xỉu",
-  "XXXTXXTX": "Xỉu",
-  "XXTXXTXX": "Xỉu",
-  "XTXXTXXX": "Tài",
-  "TXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Xỉu",
-  "XTXXXTXX": "Xỉu",
-  "TXXXTXXX": "Tài",
-  "XXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Tài",
-  "XTXXXTXT": "Xỉu",
-  "TXXXTXTX": "Xỉu",
-  "XXXTXTXX": "Xỉu",
-  "XXTXTXXX": "Tài",
-  "XTXTXXXT": "Tài",
-  "TXTXXXTT": "Tài",
-  "XTXXXTTT": "Xỉu",
-  "TXXXTTTX": "Tài",
-  "XXXTTTXT": "Tài",
-  "XXTTTXTT": "Tài",
-  "XTTTXTTT": "Xỉu",
-  "TTTXTTTX": "Xỉu",
-  "TTXTTTXX": "Xỉu",
-  "TXTTTXXX": "Tài",
-  "XTTTXXXT": "Tài",
-  "TTTXXXTT": "Tài",
-  "TTXXXTTT": "Xỉu",
-  "TXXXTTTX": "Xỉu",
-  "XXXTTTXX": "Xỉu",
-  "XXTTTXXX": "Xỉu",
-  "XTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Tài",
-  "TTXXXXXT": "Tài",
-  "TXXXXXTT": "Xỉu",
-  "XXXXXTTX": "Xỉu",
-  "XXXXTTXX": "Tài",
-  "XXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Xỉu",
-  "XTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Tài",
-  "TXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Tài",
-  "XTXXXTXT": "Xỉu",
-  "TXXXTXTX": "Tài",
-  "XXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Tài",
-  "XTXTXTXT": "Tài",
-  "TXTXTXTT": "Xỉu",
-  "XTXTXTTX": "Tài",
-  "TXTXTTXT": "Xỉu",
-  "XTXTTXTX": "Xỉu",
-  "TXTTXTXX": "Xỉu",
-  "XTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Tài",
-  "TXTXXXXT": "Xỉu",
-  "XTXXXXTX": "Tài",
-  "TXXXXTXT": "Xỉu",
-  "XXXXTXTX": "Tài",
-  "XXXTXTXT": "Tài",
-  "XXTXTXTT": "Tài",
-  "XTXTXTTT": "Xỉu",
-  "TXTXTTTX": "Xỉu",
-  "XTXTTTXX": "Xỉu",
-  "TXTTTXXX": "Xỉu",
-  "XTTTXXXX": "Tài",
-  "TTTXXXXT": "Tài",
-  "TTXXXXTT": "Xỉu",
-  "TXXXXTTX": "Tài",
-  "XXXXTTXT": "Xỉu",
-  "XXXTTXTX": "Xỉu",
-  "XXTTXTXX": "Xỉu",
-  "XTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Xỉu",
-  "TXTXXXXX": "Xỉu",
-  "XTXXXXXX": "Tài",
-  "TXXXXXXT": "Xỉu",
-  "XXXXXXTX": "Xỉu",
-  "XXXXXTXX": "Xỉu",
-  "XXXXTXXX": "Tài",
-  "XXXTXXXT": "Tài",
-  "XXTXXXTT": "Tài",
-  "XTXXXTTT": "Tài",
-  "TXXXTTTT": "Xỉu",
-  "XXXTTTTX": "Tài",
-  "XXTTTTXT": "Tài",
-  "XTTTTXTT": "Tài",
-  "TTTTXTTT": "Tài",
-  "TTTXTTTT": "Tài",
-  "TTXTTTTT": "Tài",
-  "TXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Tài",
-  "TTTTTTXT": "Xỉu",
-  "TTTTTXTX": "Tài",
-  "TTTTXTXT": "Xỉu",
-  "TTTXTXTX": "Tài",
-  "TTXTXTXT": "Xỉu",
-  "TXTXTXTX": "Tài",
-  "XTXTXTXT": "Tài",
-  "TXTXTXTT": "Xỉu",
-  "XTXTXTTX": "Tài",
-  "TXTXTTXT": "Tài",
-  "XTXTTXTT": "Xỉu",
-  "TXTTXTTX": "Xỉu",
-  "XTTXTTXX": "Xỉu",
-  "TTXTTXXX": "Xỉu",
-  "TXTTXXXX": "Xỉu",
-  "XTTXXXXX": "Tài",
-  "TTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Xỉu",
-  "XXXXXTXX": "Xỉu",
-  "XXXXTXXX": "Tài",
-  "XXXTXXXT": "Tài",
-  "XXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Tài",
-  "TXXXTTXT": "Xỉu",
-  "XXXTTXTX": "Tài",
-  "XXTTXTXT": "Xỉu",
-  "XTTXTXTX": "Tài",
-  "TTXTXTXT": "Xỉu",
-  "TXTXTXTX": "Xỉu",
-  "XTXTXTXX": "Tài",
-  "TXTXTXXT": "Xỉu",
-  "XTXTXXTX": "Xỉu",
-  "TXTXXTXX": "Tài",
-  "XTXXTXXT": "Xỉu",
-  "TXXTXXTX": "Xỉu",
-  "XXTXXTXX": "Tài",
-  "XTXXTXXT": "Tài",
-  "TXXTXXTT": "Tài",
-  "XXTXXTTT": "Tài",
-  "XTXXTTTT": "Tài",
-  "TXXTTTTT": "Tài",
-  "XXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Xỉu",
-  "TTXXXXXX": "Xỉu",
-  "TXXXXXXX": "Tài",
-  "XXXXXXXT": "Tài",
-  "XXXXXXTT": "Tài",
-  "XXXXXTTT": "Tài",
-  "XXXXTTTT": "Tài",
-  "XXXTTTTT": "Xỉu",
-  "XXTTTTTX": "Tài",
-  "XTTTTTXT": "Tài",
-  "TTTTTXTT": "Xỉu",
-  "TTTTXTTX": "Tài",
-  "TTTXTTXT": "Xỉu",
-  "TTXTTXTX": "Xỉu",
-  "TXTTXTXX": "Tài",
-  "XTTXTXXT": "Xỉu",
-  "TTXTXXTX": "Xỉu",
-  "TXTXXTXX": "Tài",
-  "XTXXTXXT": "Tài",
-  "TXXTXXTT": "Xỉu",
-  "XXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Tài",
-  "TXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Tài",
-  "XTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Tài",
-  "TXXTXTXT": "Tài",
-  "XXTXTXTT": "Tài",
-  "XTXTXTTT": "Tài",
-  "TXTXTTTT": "Tài",
-  "XTXTTTTT": "Xỉu",
-  "TXTTTTTX": "Xỉu",
-  "XTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Xỉu",
-  "TTXXXXXX": "Xỉu",
-  "TXXXXXXX": "Tài",
-  "XXXXXXXT": "Xỉu",
-  "XXXXXXTX": "Tài",
-  "XXXXXTXT": "Tài",
-  "XXXXTXTT": "Tài",
-  "XXXTXTTT": "Tài",
-  "XXTXTTTT": "Tài",
-  "XTXTTTTT": "Xỉu",
-  "TXTTTTTX": "Xỉu",
-  "XTTTTTXX": "Tài",
-  "TTTTTXXT": "Tài",
-  "TTTTXXTT": "Tài",
-  "TTTXXTTT": "Tài",
-  "TTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Xỉu",
-  "XXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Tài",
-  "TTTTXXXT": "Tài",
-  "TTTXXXTT": "Xỉu",
-  "TTXXXTTX": "Tài",
-  "TXXXTTXT": "Xỉu",
-  "XXXTTXTX": "Xỉu",
-  "XXTTXTXX": "Xỉu",
-  "XTTXTXXX": "Tài",
-  "TTXTXXXT": "Xỉu",
-  "TXTXXXTX": "Xỉu",
-  "XTXXXTXX": "Xỉu",
-  "TXXXTXXX": "Tài",
-  "XXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Xỉu",
-  "XTXXXTXX": "Tài",
-  "TXXXTXXT": "Xỉu",
-  "XXXTXXTX": "Xỉu",
-  "XXTXXTXX": "Xỉu",
-  "XTXXTXXX": "Tài",
-  "TXXTXXXT": "Tài",
-  "XXTXXXTT": "Tài",
-  "XTXXXTTT": "Tài",
-  "TXXXTTTT": "Xỉu",
-  "XXXTTTTX": "Xỉu",
-  "XXTTTTXX": "Tài",
-  "XTTTTXXT": "Xỉu",
-  "TTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Tài",
-  "TXXTXXXT": "Tài",
-  "XXTXXXTT": "Tài",
-  "XTXXXTTT": "Tài",
-  "TXXXTTTT": "Xỉu",
-  "XXXTTTTX": "Xỉu",
-  "XXTTTTXX": "Tài",
-  "XTTTTXXT": "Xỉu",
-  "TTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Tài",
-  "TXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Xỉu",
-  "XTXXXTXX": "Xỉu",
-  "TXXXTXXX": "Tài",
-  "XXXTXXXT": "Tài",
-  "XXTXXXTT": "Tài",
-  "XTXXXTTT": "Xỉu",
-  "TXXXTTTX": "Xỉu",
-  "XXXTTTXX": "Tài",
-  "XXTTTXXT": "Tài",
-  "XTTTXXTT": "Xỉu",
-  "TTTXXTTX": "Tài",
-  "TTXXTTXT": "Xỉu",
-  "TXXTTXTX": "Xỉu",
-  "XXTTXTXX": "Tài",
-  "XTTXTXXT": "Tài",
-  "TTXTXXTT": "Tài",
-  "TXTXXTTT": "Xỉu",
-  "XTXXTTTX": "Tài",
-  "TXXTTTXT": "Xỉu",
-  "XXTTTXTX": "Tài",
-  "XTTTXTXT": "Xỉu",
-  "TTTXTXTX": "Xỉu",
-  "TTXTXTXX": "Tài",
-  "TXTXTXXT": "Xỉu",
-  "XTXTXXTX": "Xỉu",
-  "TXTXXTXX": "Tài",
-  "XTXXTXXT": "Tài",
-  "TXXTXXTT": "Xỉu",
-  "XXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Tài",
-  "TXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Xỉu",
-  "XTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Xỉu",
-  "TXXTXXXX": "Tài",
-  "XXTXXXXT": "Xỉu",
-  "XTXXXXTX": "Xỉu",
-  "TXXXXTXX": "Tài",
-  "XXXXTXXT": "Tài",
-  "XXXTXXTT": "Tài",
-  "XXTXXTTT": "Xỉu",
-  "XTXXTTTX": "Tài",
-  "TXXTTTXT": "Tài",
-  "XXTTTXTT": "Tài",
-  "XTTTXTTT": "Xỉu",
-  "TTTXTTTX": "Xỉu",
-  "TTXTTTXX": "Xỉu",
-  "TXTTTXXX": "Xỉu",
-  "XTTTXXXX": "Tài",
-  "TTTXXXXT": "Tài",
-  "TTXXXXTT": "Xỉu",
-  "TXXXXTTX": "Xỉu",
-  "XXXXTTXX": "Tài",
-  "XXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Tài",
-  "XTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Xỉu",
-  "TXXTXTXX": "Tài",
-  "XXTXTXXT": "Tài",
-  "XTXTXXTT": "Xỉu",
-  "TXTXXTTX": "Tài",
-  "XTXXTTXT": "Xỉu",
-  "TXXTTXTX": "Tài",
-  "XXTTXTXT": "Tài",
-  "XTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Xỉu",
-  "TXTXTTXX": "Xỉu",
-  "XTXTTXXX": "Xỉu",
-  "TXTTXXXX": "Tài",
-  "XTTXXXXT": "Tài",
-  "TTXXXXTT": "Xỉu",
-  "TXXXXTTX": "Tài",
-  "XXXXTTXT": "Tài",
-  "XXXTTXTT": "Tài",
-  "XXTTXTTT": "Tài",
-  "XTTXTTTT": "Xỉu",
-  "TTXTTTTX": "Xỉu",
-  "TXTTTTXX": "Tài",
-  "XTTTTXXT": "Xỉu",
-  "TTTTXXTX": "Tài",
-  "TTTXXTXT": "Tài",
-  "TTXXTXTT": "Tài",
-  "TXXTXTTT": "Xỉu",
-  "XXTXTTTX": "Xỉu",
-  "XTXTTTXX": "Tài",
-  "TXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Tài",
-  "TTTXXTXT": "Tài",
-  "TTXXTXTT": "Xỉu",
-  "TXXTXTTX": "Xỉu",
-  "XXTXTTXX": "Tài",
-  "XTXTTXXT": "Xỉu",
-  "TXTTXXTX": "Xỉu",
-  "XTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Xỉu",
-  "TXXTXXXX": "Xỉu",
-  "XXTXXXXX": "Tài",
-  "XTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Xỉu",
-  "XXXXXTXX": "Tài",
-  "XXXXTXXT": "Tài",
-  "XXXTXXTT": "Tài",
-  "XXTXXTTT": "Tài",
-  "XTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Xỉu",
-  "XXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Tài",
-  "TTTTXXXT": "Xỉu",
-  "TTTXXXTX": "Xỉu",
-  "TTXXXTXX": "Tài",
-  "TXXXTXXT": "Xỉu",
-  "XXXTXXTX": "Xỉu",
-  "XXTXXTXX": "Tài",
-  "XTXXTXXT": "Xỉu",
-  "TXXTXXTX": "Xỉu",
-  "XXTXXTXX": "Xỉu",
-  "XTXXTXXX": "Xỉu",
-  "TXXTXXXX": "Tài",
-  "XXTXXXXT": "Xỉu",
-  "XTXXXXTX": "Xỉu",
-  "TXXXXTXX": "Xỉu",
-  "XXXXTXXX": "Tài",
-  "XXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Tài",
-  "XTXXXTXT": "Xỉu",
-  "TXXXTXTX": "Tài",
-  "XXXTXTXT": "Tài",
-  "XXTXTXTT": "Xỉu",
-  "XTXTXTTX": "Tài",
-  "TXTXTTXT": "Tài",
-  "XTXTTXTT": "Tài",
-  "TXTTXTTT": "Xỉu",
-  "XTTXTTTX": "Tài",
-  "TTXTTTXT": "Tài",
-  "TXTTTXTT": "Tài",
-  "XTTTXTTT": "Xỉu",
-  "TTTXTTTX": "Xỉu",
-  "TTXTTTXX": "Xỉu",
-  "TXTTTXXX": "Tài",
-  "XTTTXXXT": "Xỉu",
-  "TTTXXXTX": "Xỉu",
-  "TTXXXTXX": "Xỉu",
-  "TXXXTXXX": "Tài",
-  "XXXTXXXT": "Tài",
-  "XXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Xỉu",
-  "TXXXTTXX": "Xỉu",
-  "XXXTTXXX": "Xỉu",
-  "XXTTXXXX": "Xỉu",
-  "XTTXXXXX": "Tài",
-  "TTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Xỉu",
-  "XXXXXTXX": "Xỉu",
-  "XXXXTXXX": "Tài",
-  "XXXTXXXT": "Tài",
-  "XXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Tài",
-  "TXXXTTXT": "Tài",
-  "XXXTTXTT": "Tài",
-  "XXTTXTTT": "Tài",
-  "XTTXTTTT": "Tài",
-  "TTXTTTTT": "Xỉu",
-  "TXTTTTTX": "Xỉu",
-  "XTTTTTXX": "Tài",
-  "TTTTTXXT": "Tài",
-  "TTTTXXTT": "Tài",
-  "TTTXXTTT": "Tài",
-  "TTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Xỉu",
-  "XXTTTTXX": "Tài",
-  "XTTTTXXT": "Xỉu",
-  "TTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Tài",
-  "TTXXTXXT": "Tài",
-  "TXXTXXTT": "Tài",
-  "XXTXXTTT": "Tài",
-  "XTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Tài",
-  "XXTTTTXT": "Tài",
-  "XTTTTXTT": "Xỉu",
-  "TTTTXTTX": "Tài",
-  "TTTXTTXT": "Tài",
-  "TTXTTXTT": "Tài",
-  "TXTTXTTT": "Xỉu",
-  "XTTXTTTX": "Xỉu",
-  "TTXTTTXX": "Xỉu",
-  "TXTTTXXX": "Xỉu",
-  "XTTTXXXX": "Tài",
-  "TTTXXXXT": "Xỉu",
-  "TTXXXXTX": "Xỉu",
-  "TXXXXTXX": "Xỉu",
-  "XXXXTXXX": "Xỉu",
-  "XXXTXXXX": "Tài",
-  "XXTXXXXT": "Xỉu",
-  "XTXXXXTX": "Xỉu",
-  "TXXXXTXX": "Tài",
-  "XXXXTXXT": "Tài",
-  "XXXTXXTT": "Xỉu",
-  "XXTXXTTX": "Tài",
-  "XTXXTTXT": "Tài",
-  "TXXTTXTT": "Xỉu",
-  "XXTTXTTX": "Xỉu",
-  "XTTXTTXX": "Xỉu",
-  "TTXTTXXX": "Tài",
-  "TXTTXXXT": "Xỉu",
-  "XTTXXXTX": "Tài",
-  "TTXXXTXT": "Tài",
-  "TXXXTXTT": "Tài",
-  "XXXTXTTT": "Tài",
-  "XXTXTTTT": "Xỉu",
-  "XTXTTTTX": "Tài",
-  "TXTTTTXT": "Xỉu",
-  "XTTTTXTX": "Xỉu",
-  "TTTTXTXX": "Tài",
-  "TTTXTXXT": "Xỉu",
-  "TTXTXXTX": "Tài",
-  "TXTXXTXT": "Tài",
-  "XTXXTXTT": "Xỉu",
-  "TXXTXTTX": "Tài",
-  "XXTXTTXT": "Xỉu",
-  "XTXTTXTX": "Xỉu",
-  "TXTTXTXX": "Xỉu",
-  "XTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Tài",
-  "TXTXXXXT": "Tài",
-  "XTXXXXTT": "Tài",
-  "TXXXXTTT": "Tài",
-  "XXXXTTTT": "Tài",
-  "XXXTTTTT": "Xỉu",
-  "XXTTTTTX": "Xỉu",
-  "XTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Tài",
-  "TTTTXXXT": "Tài",
-  "TTTXXXTT": "Xỉu",
-  "TTXXXTTX": "Xỉu",
-  "TXXXTTXX": "Tài",
-  "XXXTTXXT": "Tài",
-  "XXTTXXTT": "Tài",
-  "XTTXXTTT": "Tài",
-  "TTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Xỉu",
-  "XXTTTTXX": "Tài",
-  "XTTTTXXT": "Xỉu",
-  "TTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Tài",
-  "TXXTXXXT": "Tài",
-  "XXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Tài",
-  "TXXXTTXT": "Tài",
-  "XXXTTXTT": "Tài",
-  "XXTTXTTT": "Tài",
-  "XTTXTTTT": "Tài",
-  "TTXTTTTT": "Tài",
-  "TXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Tài",
-  "TTTTTTXT": "Xỉu",
-  "TTTTTXTX": "Tài",
-  "TTTTXTXT": "Tài",
-  "TTTXTXTT": "Tài",
-  "TTXTXTTT": "Tài",
-  "TXTXTTTT": "Tài",
-  "XTXTTTTT": "Xỉu",
-  "TXTTTTTX": "Tài",
-  "XTTTTTXT": "Xỉu",
-  "TTTTTXTX": "Xỉu",
-  "TTTTXTXX": "Tài",
-  "TTTXTXXT": "Xỉu",
-  "TTXTXXTX": "Tài",
-  "TXTXXTXT": "Tài",
-  "XTXXTXTT": "Xỉu",
-  "TXXTXTTX": "Tài",
-  "XXTXTTXT": "Xỉu",
-  "XTXTTXTX": "Xỉu",
-  "TXTTXTXX": "Tài",
-  "XTTXTXXT": "Tài",
-  "TTXTXXTT": "Xỉu",
-  "TXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Xỉu",
-  "TXXTTXXX": "Xỉu",
-  "XXTTXXXX": "Xỉu",
-  "XTTXXXXX": "Tài",
-  "TTXXXXXT": "Tài",
-  "TXXXXXTT": "Xỉu",
-  "XXXXXTTX": "Xỉu",
-  "XXXXTTXX": "Tài",
-  "XXXTTXXT": "Tài",
-  "XXTTXXTT": "Tài",
-  "XTTXXTTT": "Xỉu",
-  "TTXXTTTX": "Tài",
-  "TXXTTTXT": "Xỉu",
-  "XXTTTXTX": "Xỉu",
-  "XTTTXTXX": "Tài",
-  "TTTXTXXT": "Tài",
-  "TTXTXXTT": "Xỉu",
-  "TXTXXTTX": "Tài",
-  "XTXXTTXT": "Tài",
-  "TXXTTXTT": "Tài",
-  "XXTTXTTT": "Xỉu",
-  "XTTXTTTX": "Tài",
-  "TTXTTTXT": "Xỉu",
-  "TXTTTXTX": "Xỉu",
-  "XTTTXTXX": "Xỉu",
-  "TTTXTXXX": "Tài",
-  "TTXTXXXT": "Xỉu",
-  "TXTXXXTX": "Xỉu",
-  "XTXXXTXX": "Tài",
-  "TXXXTXXT": "Tài",
-  "XXXTXXTT": "Xỉu",
-  "XXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Tài",
-  "TXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Tài",
-  "XTTXXTXT": "Tài",
-  "TTXXTXTT": "Xỉu",
-  "TXXTXTTX": "Xỉu",
-  "XXTXTTXX": "Tài",
-  "XTXTTXXT": "Xỉu",
-  "TXTTXXTX": "Xỉu",
-  "XTTXXTXX": "Tài",
-  "TTXXTXXT": "Xỉu",
-  "TXXTXXTX": "Tài",
-  "XXTXXTXT": "Xỉu",
-  "XTXXTXTX": "Xỉu",
-  "TXXTXTXX": "Tài",
-  "XXTXTXXT": "Tài",
-  "XTXTXXTT": "Tài",
-  "TXTXXTTT": "Xỉu",
-  "XTXXTTTX": "Tài",
-  "TXXTTTXT": "Xỉu",
-  "XXTTTXTX": "Xỉu",
-  "XTTTXTXX": "Xỉu",
-  "TTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Xỉu",
-  "TXTXXXXX": "Xỉu",
-  "XTXXXXXX": "Xỉu",
-  "TXXXXXXX": "Tài",
-  "XXXXXXXT": "Tài",
-  "XXXXXXTT": "Tài",
-  "XXXXXTTT": "Xỉu",
-  "XXXXTTTX": "Tài",
-  "XXXTTTXT": "Tài",
-  "XXTTTXTT": "Tài",
-  "XTTTXTTT": "Xỉu",
-  "TTTXTTTX": "Xỉu",
-  "TTXTTTXX": "Xỉu",
-  "TXTTTXXX": "Tài",
-  "XTTTXXXT": "Tài",
-  "TTTXXXTT": "Tài",
-  "TTXXXTTT": "Tài",
-  "TXXXTTTT": "Xỉu",
-  "XXXTTTTX": "Xỉu",
-  "XXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Xỉu",
-  "TTXXXXXX": "Xỉu",
-  "TXXXXXXX": "Tài",
-  "XXXXXXXT": "Tài",
-  "XXXXXXTT": "Tài",
-  "XXXXXTTT": "Xỉu",
-  "XXXXTTTX": "Tài",
-  "XXXTTTXT": "Tài",
-  "XXTTTXTT": "Tài",
-  "XTTTXTTT": "Tài",
-  "TTTXTTTT": "Xỉu",
-  "TTXTTTTX": "Tài",
-  "TXTTTTXT": "Tài",
-  "XTTTTXTT": "Xỉu",
-  "TTTTXTTX": "Xỉu",
-  "TTTXTTXX": "Tài",
-  "TTXTTXXT": "Xỉu",
-  "TXTTXXTX": "Tài",
-  "XTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Tài",
-  "TXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Tài",
-  "XTXTXTXT": "Xỉu",
-  "TXTXTXTX": "Xỉu",
-  "XTXTXTXX": "Tài",
-  "TXTXTXXT": "Xỉu",
-  "XTXTXXTX": "Xỉu",
-  "TXTXXTXX": "Xỉu",
-  "XTXXTXXX": "Xỉu",
-  "TXXTXXXX": "Tài",
-  "XXTXXXXT": "Tài",
-  "XTXXXXTT": "Tài",
-  "TXXXXTTT": "Xỉu",
-  "XXXXTTTX": "Tài",
-  "XXXTTTXT": "Tài",
-  "XXTTTXTT": "Tài",
-  "XTTTXTTT": "Xỉu",
-  "TTTXTTTX": "Tài",
-  "TTXTTTXT": "Tài",
-  "TXTTTXTT": "Tài",
-  "XTTTXTTT": "Tài",
-  "TTTXTTTT": "Xỉu",
-  "TTXTTTTX": "Xỉu",
-  "TXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Tài",
-  "TTXXXXXT": "Tài",
-  "TXXXXXTT": "Tài",
-  "XXXXXTTT": "Xỉu",
-  "XXXXTTTX": "Xỉu",
-  "XXXTTTXX": "Tài",
-  "XXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Tài",
-  "TTTXXTXT": "Tài",
-  "TTXXTXTT": "Tài",
-  "TXXTXTTT": "Tài",
-  "XXTXTTTT": "Tài",
-  "XTXTTTTT": "Tài",
-  "TXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Tài",
-  "TTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Tài",
-  "XXXXXTXT": "Xỉu",
-  "XXXXTXTX": "Tài",
-  "XXXTXTXT": "Tài",
-  "XXTXTXTT": "Tài",
-  "XTXTXTTT": "Tài",
-  "TXTXTTTT": "Tài",
-  "XTXTTTTT": "Xỉu",
-  "TXTTTTTX": "Tài",
-  "XTTTTTXT": "Tài",
-  "TTTTTXTT": "Tài",
-  "TTTTXTTT": "Xỉu",
-  "TTTXTTTX": "Xỉu",
-  "TTXTTTXX": "Xỉu",
-  "TXTTTXXX": "Xỉu",
-  "XTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Xỉu",
-  "TTXXXXXX": "Xỉu",
-  "TXXXXXXX": "Xỉu",
-  "XXXXXXXX": "Tài",
-  "XXXXXXXT": "Xỉu",
-  "XXXXXXTX": "Tài",
-  "XXXXXTXT": "Tài",
-  "XXXXTXTT": "Xỉu",
-  "XXXTXTTX": "Xỉu",
-  "XXTXTTXX": "Xỉu",
-  "X": "Tài",
-  "XT": "Tài",
-  "T": "Xỉu",
-  "TX": "Xỉu",
-  "TXX": "Tài",
-  "TXXT": "Tài",
-  "TXXTT": "Tài",
-  "TXXTTT": "Xỉu",
-  "TXXTTTX": "Tài",
-  "TXXTTTXT": "Xỉu",
-  "XXTTTXTX": "Tài",
-  "XTTTXTXT": "Xỉu",
-  "TTTXTXTX": "Tài",
-  "TTXTXTXT": "Tài",
-  "TXTXTXTT": "Tài",
-  "XTXTXTTT": "Tài",
-  "TXTXTTTT": "Tài",
-  "XTXTTTTT": "Tài",
-  "TXTTTTTT": "Tài",
-  "XTTTTTTT": "Xỉu",
-  "TTTTTTTX": "Tài",
-  "TTTTTTXT": "Tài",
-  "TTTTTXTT": "Xỉu",
-  "TTTTXTTX": "Xỉu",
-  "TTTXTTXX": "Xỉu",
-  "TTXTTXXX": "Tài",
-  "TXTTXXXT": "Xỉu",
-  "XTTXXXTX": "Xỉu",
-  "X": "Tài",
-  "XT": "Tài",
-  "XTT": "Tài",
-  "XTTT": "Xỉu",
-  "XTTTX": "Xỉu",
-  "XTTTXX": "Xỉu",
-  "XTTTXXX": "Tài",
-  "XTTTXXXT": "Tài",
-  "TTTXXXTT": "Tài",
-  "TTXXXTTT": "Tài",
-  "TXXXTTTT": "Xỉu",
-  "XXXTTTTX": "Tài",
-  "XXTTTTXT": "Tài",
-  "XTTTTXTT": "Xỉu",
-  "TTTTXTTX": "Xỉu",
-  "TTTXTTXX": "Xỉu",
-  "TTXTTXXX": "Tài",
-  "TXTTXXXT": "Tài",
-  "XTTXXXTT": "Xỉu",
-  "TTXXXTTX": "Tài",
-  "TXXXTTXT": "Tài",
-  "XXXTTXTT": "Tài",
-  "XXTTXTTT": "Tài",
-  "XTTXTTTT": "Tài",
-  "TTXTTTTT": "Tài",
-  "TXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Tài",
-  "TTTTTTXT": "Tài",
-  "TTTTTXTT": "Xỉu",
-  "TTTTXTTX": "Xỉu",
-  "TTTXTTXX": "Xỉu",
-  "TTXTTXXX": "Tài",
-  "TXTTXXXT": "Xỉu",
-  "XTTXXXTX": "Xỉu",
-  "TTXXXTXX": "Xỉu",
-  "TXXXTXXX": "Xỉu",
-  "XXXTXXXX": "Xỉu",
-  "XXTXXXXX": "Xỉu",
-  "XTXXXXXX": "Tài",
-  "TXXXXXXT": "Xỉu",
-  "XXXXXXTX": "Xỉu",
-  "XXXXXTXX": "Tài",
-  "XXXXTXXT": "Xỉu",
-  "XXXTXXTX": "Xỉu",
-  "XXTXXTXX": "Xỉu",
-  "XTXXTXXX": "Xỉu",
-  "TXXTXXXX": "Xỉu",
-  "XXTXXXXX": "Xỉu",
-  "XTXXXXXX": "Xỉu",
-  "TXXXXXXX": "Xỉu",
-  "XXXXXXXX": "Xỉu",
-  "XXXXXXXX": "Xỉu",
-  "XXXXXXXX": "Tài",
-  "XXXXXXXT": "Tài",
-  "XXXXXXTT": "Xỉu",
-  "XXXXXTTX": "Tài",
-  "XXXXTTXT": "Tài",
-  "XXXTTXTT": "Tài",
-  "XXTTXTTT": "Xỉu",
-  "XTTXTTTX": "Xỉu",
-  "TTXTTTXX": "Xỉu",
-  "TXTTTXXX": "Tài",
-  "XTTTXXXT": "Tài",
-  "TTTXXXTT": "Tài",
-  "TTXXXTTT": "Xỉu",
-  "TXXXTTTX": "Xỉu",
-  "XXXTTTXX": "Tài",
-  "XXTTTXXT": "Tài",
-  "XTTTXXTT": "Tài",
-  "TTTXXTTT": "Tài",
-  "TTXXTTTT": "Tài",
-  "TXXTTTTT": "Xỉu",
-  "XXTTTTTX": "Xỉu",
-  "XTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Tài",
-  "TTXXXXXT": "Tài",
-  "TXXXXXTT": "Xỉu",
-  "XXXXXTTX": "Tài",
-  "XXXXTTXT": "Tài",
-  "XXXTTXTT": "Tài",
-  "XXTTXTTT": "Xỉu",
-  "XTTXTTTX": "Tài",
-  "TTXTTTXT": "Tài",
-  "TXTTTXTT": "Tài",
-  "XTTTXTTT": "Xỉu",
-  "TTTXTTTX": "Tài",
-  "TTXTTTXT": "Tài",
-  "TXTTTXTT": "Xỉu",
-  "XTTTXTTX": "Tài",
-  "TTTXTTXT": "Xỉu",
-  "TTXTTXTX": "Tài",
-  "TXTTXTXT": "Tài",
-  "XTTXTXTT": "Tài",
-  "TTXTXTTT": "Tài",
-  "TXTXTTTT": "Xỉu",
-  "XTXTTTTX": "Tài",
-  "TXTTTTXT": "Xỉu",
-  "XTTTTXTX": "Tài",
-  "TTTTXTXT": "Tài",
-  "TTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Tài",
-  "TXTXTTXT": "Tài",
-  "XTXTTXTT": "Tài",
-  "TXTTXTTT": "Tài",
-  "XTTXTTTT": "Tài",
-  "TTXTTTTT": "Tài",
-  "TXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Tài",
-  "TTTTXXXT": "Xỉu",
-  "TTTXXXTX": "Tài",
-  "TTXXXTXT": "Xỉu",
-  "TXXXTXTX": "Tài",
-  "XXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Xỉu",
-  "XTXTXTXX": "Xỉu",
-  "TXTXTXXX": "Tài",
-  "XTXTXXXT": "Tài",
-  "TXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Xỉu",
-  "TXXXTTXX": "Xỉu",
-  "XXXTTXXX": "Xỉu",
-  "XXTTXXXX": "Xỉu",
-  "XTTXXXXX": "Tài",
-  "TTXXXXXT": "Tài",
-  "TXXXXXTT": "Tài",
-  "XXXXXTTT": "Tài",
-  "XXXXTTTT": "Tài",
-  "XXXTTTTT": "Tài",
-  "XXTTTTTT": "Tài",
-  "XTTTTTTT": "Xỉu",
-  "TTTTTTTX": "Tài",
-  "TTTTTTXT": "Tài",
-  "TTTTTXTT": "Xỉu",
-  "TTTTXTTX": "Tài",
-  "TTTXTTXT": "Tài",
-  "TTXTTXTT": "Xỉu",
-  "TXTTXTTX": "Tài",
-  "XTTXTTXT": "Xỉu",
-  "TTXTTXTX": "Tài",
-  "TXTTXTXT": "Xỉu",
-  "XTTXTXTX": "Xỉu",
-  "TTXTXTXX": "Tài",
-  "TXTXTXXT": "Xỉu",
-  "XTXTXXTX": "Tài",
-  "TXTXXTXT": "Tài",
-  "XTXXTXTT": "Tài",
-  "TXXTXTTT": "Tài",
-  "XXTXTTTT": "Tài",
-  "XTXTTTTT": "Xỉu",
-  "TXTTTTTX": "Xỉu",
-  "XTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Tài",
-  "TTTXXXXT": "Xỉu",
-  "TTXXXXTX": "Tài",
-  "TXXXXTXT": "Tài",
-  "XXXXTXTT": "Xỉu",
-  "XXXTXTTX": "Xỉu",
-  "XXTXTTXX": "Tài",
-  "XTXTTXXT": "Xỉu",
-  "TXTTXXTX": "Tài",
-  "XTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Tài",
-  "TXXTXTXT": "Tài",
-  "XXTXTXTT": "Tài",
-  "XTXTXTTT": "Xỉu",
-  "TXTXTTTX": "Xỉu",
-  "XTXTTTXX": "Tài",
-  "TXTTTXXT": "Tài",
-  "XTTTXXTT": "Tài",
-  "TTTXXTTT": "Tài",
-  "TTXXTTTT": "Tài",
-  "TXXTTTTT": "Xỉu",
-  "XXTTTTTX": "Xỉu",
-  "XTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Tài",
-  "TTTXXXXT": "Tài",
-  "TTXXXXTT": "Xỉu",
-  "TXXXXTTX": "Xỉu",
-  "XXXXTTXX": "Tài",
-  "XXXTTXXT": "Tài",
-  "XXTTXXTT": "Tài",
-  "XTTXXTTT": "Tài",
-  "TTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Xỉu",
-  "XXTTTTXX": "Tài",
-  "XTTTTXXT": "Xỉu",
-  "TTTTXXTX": "Tài",
-  "TTTXXTXT": "Tài",
-  "TTXXTXTT": "Xỉu",
-  "TXXTXTTX": "Xỉu",
-  "XXTXTTXX": "Xỉu",
-  "XTXTTXXX": "Xỉu",
-  "TXTTXXXX": "Xỉu",
-  "XTTXXXXX": "Tài",
-  "TTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Xỉu",
-  "XXXXXTXX": "Xỉu",
-  "XXXXTXXX": "Tài",
-  "XXXTXXXT": "Tài",
-  "XXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Xỉu",
-  "TXXXTTXX": "Tài",
-  "XXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Xỉu",
-  "XTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Xỉu",
-  "TXXTXXXX": "Xỉu",
-  "XXTXXXXX": "Tài",
-  "XTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Xỉu",
-  "XXXXXTXX": "Xỉu",
-  "XXXXTXXX": "Xỉu",
-  "XXXTXXXX": "Xỉu",
-  "XXTXXXXX": "Tài",
-  "XTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Tài",
-  "XXXXXTXT": "Xỉu",
-  "XXXXTXTX": "Xỉu",
-  "XXXTXTXX": "Tài",
-  "XXTXTXXT": "Tài",
-  "XTXTXXTT": "Xỉu",
-  "TXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Tài",
-  "TXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Xỉu",
-  "XTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Tài",
-  "TXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Xỉu",
-  "XTXXXTXX": "Tài",
-  "TXXXTXXT": "Xỉu",
-  "XXXTXXTX": "Tài",
-  "XXTXXTXT": "Tài",
-  "XTXXTXTT": "Xỉu",
-  "TXXTXTTX": "Tài",
-  "XXTXTTXT": "Tài",
-  "XTXTTXTT": "Tài",
-  "TXTTXTTT": "Tài",
-  "XTTXTTTT": "Xỉu",
-  "TTXTTTTX": "Tài",
-  "TXTTTTXT": "Xỉu",
-  "XTTTTXTX": "Tài",
-  "TTTTXTXT": "Xỉu",
-  "TTTXTXTX": "Tài",
-  "TTXTXTXT": "Tài",
-  "TXTXTXTT": "Xỉu",
-  "XTXTXTTX": "Xỉu",
-  "TXTXTTXX": "Xỉu",
-  "XTXTTXXX": "Xỉu",
-  "TXTTXXXX": "Xỉu",
-  "XTTXXXXX": "Tài",
-  "TTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Xỉu",
-  "XXXXXTXX": "Tài",
-  "XXXXTXXT": "Tài",
-  "XXXTXXTT": "Xỉu",
-  "XXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Xỉu",
-  "TXXTTXXX": "Tài",
-  "XXTTXXXT": "Xỉu",
-  "XTTXXXTX": "Xỉu",
-  "TTXXXTXX": "Xỉu",
-  "TXXXTXXX": "Tài",
-  "XXXTXXXT": "Tài",
-  "XXTXXXTT": "Tài",
-  "XTXXXTTT": "Xỉu",
-  "TXXXTTTX": "Tài",
-  "XXXTTTXT": "Tài",
-  "XXTTTXTT": "Tài",
-  "XTTTXTTT": "Xỉu",
-  "TTTXTTTX": "Xỉu",
-  "TTXTTTXX": "Tài",
-  "TXTTTXXT": "Tài",
-  "XTTTXXTT": "Tài",
-  "TTTXXTTT": "Tài",
-  "TTXXTTTT": "Tài",
-  "TXXTTTTT": "Tài",
-  "XXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Tài",
-  "TTTTTTXT": "Tài",
-  "TTTTTXTT": "Tài",
-  "TTTTXTTT": "Xỉu",
-  "TTTXTTTX": "Xỉu",
-  "TTXTTTXX": "Tài",
-  "TXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Tài",
-  "TTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Xỉu",
-  "TXXTXTXX": "Xỉu",
-  "XXTXTXXX": "Xỉu",
-  "XTXTXXXX": "Xỉu",
-  "TXTXXXXX": "Xỉu",
-  "XTXXXXXX": "Xỉu",
-  "TXXXXXXX": "Tài",
-  "XXXXXXXT": "Tài",
-  "XXXXXXTT": "Xỉu",
-  "XXXXXTTX": "Tài",
-  "XXXXTTXT": "Tài",
-  "XXXTTXTT": "Tài",
-  "XXTTXTTT": "Xỉu",
-  "XTTXTTTX": "Tài",
-  "TTXTTTXT": "Tài",
-  "TXTTTXTT": "Tài",
-  "XTTTXTTT": "Xỉu",
-  "TTTXTTTX": "Tài",
-  "TTXTTTXT": "Tài",
-  "T": "Tài",
-  "TT": "Xỉu",
-  "TTX": "Tài",
-  "TTXT": "Xỉu",
-  "TTXTX": "Xỉu",
-  "TTXTXX": "Xỉu",
-  "TTXTXXX": "Xỉu",
-  "TTXTXXXX": "Tài",
-  "TXTXXXXT": "Xỉu",
-  "XTXXXXTX": "Xỉu",
-  "TXXXXTXX": "Tài",
-  "XXXXTXXT": "Tài",
-  "XXXTXXTT": "Tài",
-  "XXTXXTTT": "Tài",
-  "XTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Xỉu",
-  "XXTTTTXX": "Tài",
-  "XTTTTXXT": "Xỉu",
-  "TTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Tài",
-  "TXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Xỉu",
-  "XTXXXTXX": "Tài",
-  "TXXXTXXT": "Tài",
-  "XXXTXXTT": "Xỉu",
-  "XXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Xỉu",
-  "TXXTTXXX": "Tài",
-  "XXTTXXXT": "Xỉu",
-  "XTTXXXTX": "Tài",
-  "TTXXXTXT": "Xỉu",
-  "TXXXTXTX": "Xỉu",
-  "XXXTXTXX": "Xỉu",
-  "XXTXTXXX": "Tài",
-  "XTXTXXXT": "Xỉu",
-  "TXTXXXTX": "Tài",
-  "XTXXXTXT": "Tài",
-  "TXXXTXTT": "Tài",
-  "XXXTXTTT": "Xỉu",
-  "XXTXTTTX": "Tài",
-  "XTXTTTXT": "Tài",
-  "TXTTTXTT": "Tài",
-  "XTTTXTTT": "Xỉu",
-  "TTTXTTTX": "Xỉu",
-  "TTXTTTXX": "Tài",
-  "TXTTTXXT": "Tài",
-  "XTTTXXTT": "Xỉu",
-  "TTTXXTTX": "Xỉu",
-  "TTXXTTXX": "Tài",
-  "TXXTTXXT": "Tài",
-  "XXTTXXTT": "Xỉu",
-  "XTTXXTTX": "Tài",
-  "TTXXTTXT": "Xỉu",
-  "TXXTTXTX": "Tài",
-  "XXTTXTXT": "Tài",
-  "XTTXTXTT": "Tài",
-  "TTXTXTTT": "Tài",
-  "TXTXTTTT": "Xỉu",
-  "XTXTTTTX": "Tài",
-  "TXTTTTXT": "Xỉu",
-  "XTTTTXTX": "Xỉu",
-  "TTTTXTXX": "Tài",
-  "TTTXTXXT": "Tài",
-  "TTXTXXTT": "Xỉu",
-  "TXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Xỉu",
-  "TXXTTXXX": "Xỉu",
-  "XXTTXXXX": "Xỉu",
-  "XTTXXXXX": "Tài",
-  "TTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Tài",
-  "XXXXXTXT": "Xỉu",
-  "XXXXTXTX": "Tài",
-  "XXXTXTXT": "Tài",
-  "XXTXTXTT": "Tài",
-  "XTXTXTTT": "Tài",
-  "TXTXTTTT": "Tài",
-  "XTXTTTTT": "Tài",
-  "TXTTTTTT": "Tài",
-  "XTTTTTTT": "Xỉu",
-  "TTTTTTTX": "Tài",
-  "TTTTTTXT": "Xỉu",
-  "TTTTTXTX": "Tài",
-  "TTTTXTXT": "Xỉu",
-  "TTTXTXTX": "Xỉu",
-  "TTXTXTXX": "Xỉu",
-  "TXTXTXXX": "Tài",
-  "XTXTXXXT": "Xỉu",
-  "TXTXXXTX": "Tài",
-  "XTXXXTXT": "Tài",
-  "TXXXTXTT": "Tài",
-  "XXXTXTTT": "Xỉu",
-  "XXTXTTTX": "Tài",
-  "XTXTTTXT": "Tài",
-  "TXTTTXTT": "Xỉu",
-  "XTTTXTTX": "Tài",
-  "TTTXTTXT": "Xỉu",
-  "TTXTTXTX": "Xỉu",
-  "TXTTXTXX": "Xỉu",
-  "XTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Xỉu",
-  "TXTXXXXX": "Tài",
-  "XTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Xỉu",
-  "XXXXXTXX": "Xỉu",
-  "XXXXTXXX": "Xỉu",
-  "XXXTXXXX": "Xỉu",
-  "XXTXXXXX": "Tài",
-  "XTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Xỉu",
-  "XXXXXTXX": "Tài",
-  "XXXXTXXT": "Tài",
-  "XXXTXXTT": "Xỉu",
-  "XXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Xỉu",
-  "TXXTTXXX": "Tài",
-  "XXTTXXXT": "Tài",
-  "XTTXXXTT": "Xỉu",
-  "TTXXXTTX": "Xỉu",
-  "TXXXTTXX": "Tài",
-  "XXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Xỉu",
-  "XTTXXTXX": "Tài",
-  "TTXXTXXT": "Xỉu",
-  "TXXTXXTX": "Tài",
-  "XXTXXTXT": "Xỉu",
-  "XTXXTXTX": "Tài",
-  "TXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Tài",
-  "XTXTXTXT": "Xỉu",
-  "TXTXTXTX": "Tài",
-  "XTXTXTXT": "Tài",
-  "TXTXTXTT": "Tài",
-  "XTXTXTTT": "Xỉu",
-  "TXTXTTTX": "Tài",
-  "XTXTTTXT": "Xỉu",
-  "TXTTTXTX": "Xỉu",
-  "XTTTXTXX": "Xỉu",
-  "TTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Tài",
-  "TXTXXXXT": "Xỉu",
-  "XTXXXXTX": "Xỉu",
-  "TXXXXTXX": "Tài",
-  "XXXXTXXT": "Tài",
-  "XXXTXXTT": "Tài",
-  "XXTXXTTT": "Tài",
-  "XTXXTTTT": "Tài",
-  "TXXTTTTT": "Tài",
-  "XXTTTTTT": "Tài",
-  "XTTTTTTT": "Xỉu",
-  "TTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Tài",
-  "TTTTXXXT": "Xỉu",
-  "TTTXXXTX": "Tài",
-  "TTXXXTXT": "Tài",
-  "TXXXTXTT": "Xỉu",
-  "XXXTXTTX": "Xỉu",
-  "XXTXTTXX": "Tài",
-  "XTXTTXXT": "Xỉu",
-  "TXTTXXTX": "Tài",
-  "XTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Tài",
-  "TXXTXTXT": "Tài",
-  "XXTXTXTT": "Xỉu",
-  "XTXTXTTX": "Xỉu",
-  "TXTXTTXX": "Tài",
-  "XTXTTXXT": "Xỉu",
-  "TXTTXXTX": "Tài",
-  "XTTXXTXT": "Tài",
-  "TTXXTXTT": "Xỉu",
-  "TXXTXTTX": "Xỉu",
-  "XXTXTTXX": "Xỉu",
-  "XTXTTXXX": "Xỉu",
-  "TXTTXXXX": "Tài",
-  "XTTXXXXT": "Tài",
-  "TTXXXXTT": "Tài",
-  "TXXXXTTT": "Xỉu",
-  "XXXXTTTX": "Xỉu",
-  "XXXTTTXX": "Tài",
-  "XXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Tài",
-  "TXXTXXXT": "Tài",
-  "XXTXXXTT": "Tài",
-  "XTXXXTTT": "Tài",
-  "TXXXTTTT": "Tài",
-  "XXXTTTTT": "Xỉu",
-  "XXTTTTTX": "Tài",
-  "XTTTTTXT": "Tài",
-  "TTTTTXTT": "Tài",
-  "TTTTXTTT": "Xỉu",
-  "TTTXTTTX": "Xỉu",
-  "TTXTTTXX": "Tài",
-  "TXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Xỉu",
-  "X": "Tài",
-  "XT": "Tài",
-  "XTT": "Tài",
-  "XTTT": "Xỉu",
-  "XTTTX": "Xỉu",
-  "XTTTXX": "Tài",
-  "XTTTXXT": "Tài",
-  "XTTTXXTT": "Xỉu",
-  "TTTXXTTX": "Tài",
-  "TTXXTTXT": "Xỉu",
-  "TXXTTXTX": "Xỉu",
-  "XXTTXTXX": "Xỉu",
-  "XTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Tài",
-  "TXTXXXXT": "Tài",
-  "XTXXXXTT": "Tài",
-  "TXXXXTTT": "Xỉu",
-  "XXXXTTTX": "Tài",
-  "XXXTTTXT": "Tài",
-  "XXTTTXTT": "Tài",
-  "XTTTXTTT": "Xỉu",
-  "TTTXTTTX": "Xỉu",
-  "TTXTTTXX": "Tài",
-  "TXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Tài",
-  "TTTXXTXT": "Tài",
-  "TTXXTXTT": "Xỉu",
-  "TXXTXTTX": "Xỉu",
-  "XXTXTTXX": "Tài",
-  "XTXTTXXT": "Xỉu",
-  "TXTTXXTX": "Xỉu",
-  "XTTXXTXX": "Tài",
-  "TTXXTXXT": "Tài",
-  "TXXTXXTT": "Xỉu",
-  "XXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Xỉu",
-  "TXXTTXXX": "Tài",
-  "XXTTXXXT": "Tài",
-  "XTTXXXTT": "Xỉu",
-  "TTXXXTTX": "Tài",
-  "TXXXTTXT": "Tài",
-  "XXXTTXTT": "Tài",
-  "XXTTXTTT": "Tài",
-  "XTTXTTTT": "Xỉu",
-  "TTXTTTTX": "Tài",
-  "TXTTTTXT": "Xỉu",
-  "XTTTTXTX": "Tài",
-  "TTTTXTXT": "Tài",
-  "TTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Xỉu",
-  "TXTXTTXX": "Xỉu",
-  "XTXTTXXX": "Xỉu",
-  "TXTTXXXX": "Xỉu",
-  "XTTXXXXX": "Tài",
-  "TTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Xỉu",
-  "XXXXXTXX": "Tài",
-  "XXXXTXXT": "Xỉu",
-  "XXXTXXTX": "Xỉu",
-  "XXTXXTXX": "Tài",
-  "XTXXTXXT": "Tài",
-  "TXXTXXTT": "Tài",
-  "XXTXXTTT": "Xỉu",
-  "XTXXTTTX": "Tài",
-  "TXXTTTXT": "Tài",
-  "XXTTTXTT": "Tài",
-  "XTTTXTTT": "Xỉu",
-  "TTTXTTTX": "Xỉu",
-  "TTXTTTXX": "Tài",
-  "TXTTTXXT": "Tài",
-  "XTTTXXTT": "Xỉu",
-  "TTTXXTTX": "Xỉu",
-  "TTXXTTXX": "Xỉu",
-  "TXXTTXXX": "Xỉu",
-  "XXTTXXXX": "Tài",
-  "XTTXXXXT": "Tài",
-  "TTXXXXTT": "Xỉu",
-  "TXXXXTTX": "Xỉu",
-  "XXXXTTXX": "Xỉu",
-  "XXXTTXXX": "Xỉu",
-  "XXTTXXXX": "Xỉu",
-  "XTTXXXXX": "Xỉu",
-  "TTXXXXXX": "Tài",
-  "TXXXXXXT": "Tài",
-  "XXXXXXTT": "Xỉu",
-  "XXXXXTTX": "Tài",
-  "XXXXTTXT": "Tài",
-  "XXXTTXTT": "Tài",
-  "XXTTXTTT": "Xỉu",
-  "XTTXTTTX": "Tài",
-  "TTXTTTXT": "Tài",
-  "TXTTTXTT": "Tài",
-  "XTTTXTTT": "Tài",
-  "TTTXTTTT": "Tài",
-  "TTXTTTTT": "Xỉu",
-  "TXTTTTTX": "Xỉu",
-  "XTTTTTXX": "Tài",
-  "TTTTTXXT": "Tài",
-  "TTTTXXTT": "Xỉu",
-  "TTTXXTTX": "Tài",
-  "TTXXTTXT": "Xỉu",
-  "TXXTTXTX": "Tài",
-  "XXTTXTXT": "Xỉu",
-  "XTTXTXTX": "Tài",
-  "TTXTXTXT": "Tài",
-  "TXTXTXTT": "Xỉu",
-  "XTXTXTTX": "Xỉu",
-  "TXTXTTXX": "Tài",
-  "XTXTTXXT": "Xỉu",
-  "TXTTXXTX": "Tài",
-  "XTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Xỉu",
-  "TXXTXTXX": "Xỉu",
-  "XXTXTXXX": "Xỉu",
-  "XTXTXXXX": "Xỉu",
-  "TXTXXXXX": "Xỉu",
-  "XTXXXXXX": "Xỉu",
-  "TXXXXXXX": "Tài",
-  "XXXXXXXT": "Xỉu",
-  "XXXXXXTX": "Tài",
-  "XXXXXTXT": "Tài",
-  "XXXXTXTT": "Xỉu",
-  "XXXTXTTX": "Tài",
-  "XXTXTTXT": "Tài",
-  "XTXTTXTT": "Tài",
-  "TXTTXTTT": "Xỉu",
-  "XTTXTTTX": "Tài",
-  "TTXTTTXT": "Tài",
-  "TXTTTXTT": "Tài",
-  "XTTTXTTT": "Tài",
-  "TTTXTTTT": "Tài",
-  "TTXTTTTT": "Xỉu",
-  "TXTTTTTX": "Tài",
-  "XTTTTTXT": "Xỉu",
-  "TTTTTXTX": "Tài",
-  "TTTTXTXT": "Tài",
-  "TTTXTXTT": "Tài",
-  "TTXTXTTT": "Tài",
-  "TXTXTTTT": "Xỉu",
-  "XTXTTTTX": "Xỉu",
-  "TXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Tài",
-  "TTTTXXXT": "Tài",
-  "T": "Xỉu",
-  "TX": "Tài",
-  "TXT": "Tài",
-  "TXTT": "Xỉu",
-  "TXTTX": "Tài",
-  "TXTTXT": "Tài",
-  "TXTTXTT": "Tài",
-  "TXTTXTTT": "Xỉu",
-  "XTTXTTTX": "Tài",
-  "TTXTTTXT": "Xỉu",
-  "TXTTTXTX": "Tài",
-  "XTTTXTXT": "Xỉu",
-  "TTTXTXTX": "Xỉu",
-  "TTXTXTXX": "Xỉu",
-  "TXTXTXXX": "Xỉu",
-  "XTXTXXXX": "Tài",
-  "TXTXXXXT": "Xỉu",
-  "XTXXXXTX": "Tài",
-  "TXXXXTXT": "Tài",
-  "XXXXTXTT": "Tài",
-  "XXXTXTTT": "Tài",
-  "XXTXTTTT": "Tài",
-  "XTXTTTTT": "Tài",
-  "TXTTTTTT": "Tài",
-  "XTTTTTTT": "Xỉu",
-  "TTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Tài",
-  "TTTTTXXT": "Tài",
-  "TTTTXXTT": "Tài",
-  "TTTXXTTT": "Tài",
-  "TTXXTTTT": "Tài",
-  "TXXTTTTT": "Tài",
-  "XXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Tài",
-  "TTTXXXXT": "Tài",
-  "TTXXXXTT": "Tài",
-  "TXXXXTTT": "Tài",
-  "XXXXTTTT": "Tài",
-  "XXXTTTTT": "Tài",
-  "XXTTTTTT": "Tài",
-  "XTTTTTTT": "Tài",
-  "TTTTTTTT": "Xỉu",
-  "TTTTTTTX": "Tài",
-  "TTTTTTXT": "Xỉu",
-  "TTTTTXTX": "Tài",
-  "TTTTXTXT": "Tài",
-  "TTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Tài",
-  "TXTXTTXT": "Tài",
-  "XTXTTXTT": "Tài",
-  "T": "Xỉu",
-  "TX": "Xỉu",
-  "TXX": "Xỉu",
-  "TXXX": "Tài",
-  "TXXXT": "Tài",
-  "TXXXTT": "Tài",
-  "TXXXTTT": "Xỉu",
-  "TXXXTTTX": "Tài",
-  "XXXTTTXT": "Xỉu",
-  "XXTTTXTX": "Tài",
-  "XTTTXTXT": "Tài",
-  "TTTXTXTT": "Tài",
-  "TTXTXTTT": "Tài",
-  "TXTXTTTT": "Xỉu",
-  "XTXTTTTX": "Xỉu",
-  "TXTTTTXX": "Tài",
-  "XTTTTXXT": "Xỉu",
-  "TTTTXXTX": "Tài",
-  "TTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Xỉu",
-  "TXXTXTXX": "Xỉu",
-  "XXTXTXXX": "Tài",
-  "XTXTXXXT": "Tài",
-  "TXTXXXTT": "Tài",
-  "XTXXXTTT": "Tài",
-  "TXXXTTTT": "Tài",
-  "XXXTTTTT": "Xỉu",
-  "XXTTTTTX": "Tài",
-  "XTTTTTXT": "Xỉu",
-  "TTTTTXTX": "Xỉu",
-  "TTTTXTXX": "Xỉu",
-  "TTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Tài",
-  "TXTXXXXT": "Xỉu",
-  "XTXXXXTX": "Xỉu",
-  "TXXXXTXX": "Tài",
-  "XXXXTXXT": "Xỉu",
-  "XXXTXXTX": "Tài",
-  "XXTXXTXT": "Xỉu",
-  "XTXXTXTX": "Xỉu",
-  "TXXTXTXX": "Tài",
-  "XXTXTXXT": "Xỉu",
-  "XTXTXXTX": "Xỉu",
-  "TXTXXTXX": "Xỉu",
-  "XTXXTXXX": "Tài",
-  "TXXTXXXT": "Tài",
-  "XXTXXXTT": "Tài",
-  "XTXXXTTT": "Xỉu",
-  "TXXXTTTX": "Tài",
-  "XXXTTTXT": "Xỉu",
-  "XXTTTXTX": "Tài",
-  "XTTTXTXT": "Tài",
-  "TTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Tài",
-  "TXTXTTXT": "Xỉu",
-  "XTXTTXTX": "Xỉu",
-  "TXTTXTXX": "Xỉu",
-  "XTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Tài",
-  "TXTXXXXT": "Tài",
-  "XTXXXXTT": "Xỉu",
-  "TXXXXTTX": "Tài",
-  "XXXXTTXT": "Xỉu",
-  "XXXTTXTX": "Xỉu",
-  "XXTTXTXX": "Tài",
-  "XTTXTXXT": "Tài",
-  "TTXTXXTT": "Xỉu",
-  "TXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Tài",
-  "TXXTTXXT": "Tài",
-  "XXTTXXTT": "Tài",
-  "XTTXXTTT": "Xỉu",
-  "TTXXTTTX": "Xỉu",
-  "TXXTTTXX": "Tài",
-  "XXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Tài",
-  "TTTXXTXT": "Tài",
-  "TTXXTXTT": "Tài",
-  "TXXTXTTT": "Tài",
-  "XXTXTTTT": "Tài",
-  "XTXTTTTT": "Tài",
-  "TXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Tài",
-  "TTTTTTXT": "Tài",
-  "TTTTTXTT": "Xỉu",
-  "TTTTXTTX": "Tài",
-  "TTTXTTXT": "Tài",
-  "TTXTTXTT": "Tài",
-  "TXTTXTTT": "Xỉu",
-  "XTTXTTTX": "Xỉu",
-  "TTXTTTXX": "Tài",
-  "TXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Tài",
-  "TXXTXXXT": "Tài",
-  "XXTXXXTT": "Tài",
-  "XTXXXTTT": "Tài",
-  "TXXXTTTT": "Tài",
-  "XXXTTTTT": "Tài",
-  "XXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Tài",
-  "TTTTTXXT": "Tài",
-  "TTTTXXTT": "Xỉu",
-  "TTTXXTTX": "Tài",
-  "TTXXTTXT": "Tài",
-  "TXXTTXTT": "Tài",
-  "XXTTXTTT": "Tài",
-  "XTTXTTTT": "Tài",
-  "TTXTTTTT": "Tài",
-  "TXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Tài",
-  "TTTTTTXT": "Tài",
-  "TTTTTXTT": "Xỉu",
-  "TTTTXTTX": "Xỉu",
-  "TTTXTTXX": "Xỉu",
-  "TTXTTXXX": "Xỉu",
-  "TXTTXXXX": "Xỉu",
-  "XTTXXXXX": "Tài",
-  "TTXXXXXT": "Tài",
-  "TXXXXXTT": "Xỉu",
-  "XXXXXTTX": "Xỉu",
-  "XXXXTTXX": "Tài",
-  "XXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Xỉu",
-  "XTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Tài",
-  "TXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Tài",
-  "XTXXXTXT": "Xỉu",
-  "TXXXTXTX": "Xỉu",
-  "XXXTXTXX": "Tài",
-  "XXTXTXXT": "Tài",
-  "XTXTXXTT": "Xỉu",
-  "TXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Xỉu",
-  "TXXTTXXX": "Xỉu",
-  "XXTTXXXX": "Xỉu",
-  "XTTXXXXX": "Xỉu",
-  "TTXXXXXX": "Xỉu",
-  "TXXXXXXX": "Tài",
-  "XXXXXXXT": "Tài",
-  "XXXXXXTT": "Tài",
-  "XXXXXTTT": "Xỉu",
-  "XXXXTTTX": "Xỉu",
-  "XXXTTTXX": "Xỉu",
-  "XXTTTXXX": "Tài",
-  "XTTTXXXT": "Xỉu",
-  "TTTXXXTX": "Xỉu",
-  "TTXXXTXX": "Tài",
-  "TXXXTXXT": "Xỉu",
-  "XXXTXXTX": "Tài",
-  "XXTXXTXT": "Xỉu",
-  "XTXXTXTX": "Xỉu",
-  "TXXTXTXX": "Xỉu",
-  "XXTXTXXX": "Tài",
-  "XTXTXXXT": "Tài",
-  "TXTXXXTT": "Tài",
-  "XTXXXTTT": "Tài",
-  "TXXXTTTT": "Tài",
-  "XXXTTTTT": "Tài",
-  "XXTTTTTT": "Tài",
-  "XTTTTTTT": "Tài",
-  "TTTTTTTT": "Xỉu",
-  "TTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Tài",
-  "TTTXXXXT": "Tài",
-  "TTXXXXTT": "Xỉu",
-  "TXXXXTTX": "Tài",
-  "XXXXTTXT": "Xỉu",
-  "XXXTTXTX": "Xỉu",
-  "XXTTXTXX": "Xỉu",
-  "XTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Xỉu",
-  "TXTXXXXX": "Tài",
-  "XTXXXXXT": "Tài",
-  "TXXXXXTT": "Tài",
-  "XXXXXTTT": "Xỉu",
-  "XXXXTTTX": "Tài",
-  "XXXTTTXT": "Tài",
-  "XXTTTXTT": "Xỉu",
-  "XTTTXTTX": "Tài",
-  "TTTXTTXT": "Tài",
-  "TTXTTXTT": "Xỉu",
-  "TXTTXTTX": "Tài",
-  "XTTXTTXT": "Xỉu",
-  "TTXTTXTX": "Tài",
-  "TXTTXTXT": "Tài",
-  "XTTXTXTT": "Tài",
-  "TTXTXTTT": "Tài",
-  "TXTXTTTT": "Tài",
-  "XTXTTTTT": "Tài",
-  "TXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Tài",
-  "TTTTTXXT": "Tài",
-  "TTTTXXTT": "Tài",
-  "TTTXXTTT": "Xỉu",
-  "TTXXTTTX": "Xỉu",
-  "TXXTTTXX": "Tài",
-  "XXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Tài",
-  "TTXXTXXT": "Tài",
-  "TXXTXXTT": "Xỉu",
-  "XXTXXTTX": "Tài",
-  "XTXXTTXT": "Xỉu",
-  "TXXTTXTX": "Tài",
-  "XXTTXTXT": "Xỉu",
-  "XTTXTXTX": "Xỉu",
-  "TTXTXTXX": "Xỉu",
-  "TXTXTXXX": "Tài",
-  "XTXTXXXT": "Xỉu",
-  "TXTXXXTX": "Tài",
-  "XTXXXTXT": "Tài",
-  "TXXXTXTT": "Xỉu",
-  "XXXTXTTX": "Xỉu",
-  "XXTXTTXX": "Tài",
-  "XTXTTXXT": "Tài",
-  "TXTTXXTT": "Xỉu",
-  "XTTXXTTX": "Xỉu",
-  "TTXXTTXX": "Xỉu",
-  "TXXTTXXX": "Tài",
-  "XXTTXXXT": "Tài",
-  "XTTXXXTT": "Xỉu",
-  "TTXXXTTX": "Tài",
-  "TXXXTTXT": "Xỉu",
-  "XXXTTXTX": "Xỉu",
-  "XXTTXTXX": "Tài",
-  "XTTXTXXT": "Xỉu",
-  "TTXTXXTX": "Xỉu",
-  "TXTXXTXX": "Tài",
-  "XTXXTXXT": "Tài",
-  "TXXTXXTT": "Tài",
-  "XXTXXTTT": "Tài",
-  "XTXXTTTT": "Tài",
-  "TXXTTTTT": "Xỉu",
-  "XXTTTTTX": "Xỉu",
-  "XTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Tài",
-  "TTTTXXXT": "Xỉu",
-  "TTTXXXTX": "Xỉu",
-  "TTXXXTXX": "Xỉu",
-  "TXXXTXXX": "Tài",
-  "XXXTXXXT": "Tài",
-  "XXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Xỉu",
-  "TXXXTTXX": "Tài",
-  "XXXTTXXT": "Tài",
-  "XXTTXXTT": "Xỉu",
-  "XTTXXTTX": "Xỉu",
-  "TTXXTTXX": "Tài",
-  "TXXTTXXT": "Tài",
-  "XXTTXXTT": "Tài",
-  "XTTXXTTT": "Tài",
-  "TTXXTTTT": "Tài",
-  "TXXTTTTT": "Xỉu",
-  "XXTTTTTX": "Xỉu",
-  "XTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Tài",
-  "TTXXXXXT": "Tài",
-  "TXXXXXTT": "Xỉu",
-  "XXXXXTTX": "Xỉu",
-  "XXXXTTXX": "Tài",
-  "XXXTTXXT": "Tài",
-  "XXTTXXTT": "Xỉu",
-  "XTTXXTTX": "Tài",
-  "TTXXTTXT": "Xỉu",
-  "TXXTTXTX": "Tài",
-  "XXTTXTXT": "Xỉu",
-  "XTTXTXTX": "Xỉu",
-  "TTXTXTXX": "Tài",
-  "TXTXTXXT": "Xỉu",
-  "XTXTXXTX": "Tài",
-  "TXTXXTXT": "Tài",
-  "XTXXTXTT": "Xỉu",
-  "TXXTXTTX": "Tài",
-  "XXTXTTXT": "Xỉu",
-  "XTXTTXTX": "Xỉu",
-  "TXTTXTXX": "Tài",
-  "XTTXTXXT": "Tài",
-  "TTXTXXTT": "Tài",
-  "TXTXXTTT": "Tài",
-  "XTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Xỉu",
-  "XXTTTTXX": "Tài",
-  "XTTTTXXT": "Tài",
-  "TTTTXXTT": "Tài",
-  "TTTXXTTT": "Tài",
-  "TTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Xỉu",
-  "XXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Tài",
-  "TTTXXXXT": "Xỉu",
-  "TTXXXXTX": "Tài",
-  "TXXXXTXT": "Xỉu",
-  "XXXXTXTX": "Tài",
-  "XXXTXTXT": "Tài",
-  "XXTXTXTT": "Xỉu",
-  "XTXTXTTX": "Tài",
-  "TXTXTTXT": "Xỉu",
-  "XTXTTXTX": "Tài",
-  "TXTTXTXT": "Xỉu",
-  "XTTXTXTX": "Tài",
-  "TTXTXTXT": "Tài",
-  "TXTXTXTT": "Xỉu",
-  "XTXTXTTX": "Xỉu",
-  "TXTXTTXX": "Tài",
-  "XTXTTXXT": "Tài",
-  "TXTTXXTT": "Tài",
-  "XTTXXTTT": "Tài",
-  "TTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Tài",
-  "XXTTTTXT": "Tài",
-  "XTTTTXTT": "Tài",
-  "TTTTXTTT": "Tài",
-  "TTTXTTTT": "Tài",
-  "TTXTTTTT": "Xỉu",
-  "TXTTTTTX": "Tài",
-  "XTTTTTXT": "Xỉu",
-  "TTTTTXTX": "Xỉu",
-  "TTTTXTXX": "Tài",
-  "TTTXTXXT": "Xỉu",
-  "TTXTXXTX": "Xỉu",
-  "TXTXXTXX": "Xỉu",
-  "XTXXTXXX": "Tài",
-  "TXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Xỉu",
-  "XTXXXTXX": "Tài",
-  "TXXXTXXT": "Tài",
-  "XXXTXXTT": "Xỉu",
-  "XXTXXTTX": "Tài",
-  "XTXXTTXT": "Tài",
-  "TXXTTXTT": "Xỉu",
-  "XXTTXTTX": "Xỉu",
-  "XTTXTTXX": "Xỉu",
-  "TTXTTXXX": "Xỉu",
-  "TXTTXXXX": "Xỉu",
-  "XTTXXXXX": "Tài",
-  "TTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Xỉu",
-  "XXXXXTXX": "Xỉu",
-  "XXXXTXXX": "Tài",
-  "XXXTXXXT": "Tài",
-  "XXTXXXTT": "Tài",
-  "XTXXXTTT": "Tài",
-  "TXXXTTTT": "Tài",
-  "XXXTTTTT": "Xỉu",
-  "XXTTTTTX": "Tài",
-  "XTTTTTXT": "Tài",
-  "TTTTTXTT": "Xỉu",
-  "TTTTXTTX": "Tài",
-  "TTTXTTXT": "Tài",
-  "TTXTTXTT": "Tài",
-  "TXTTXTTT": "Tài",
-  "XTTXTTTT": "Xỉu",
-  "TTXTTTTX": "Xỉu",
-  "TXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Tài",
-  "TTTTXXXT": "Tài",
-  "TTTXXXTT": "Tài",
-  "TTXXXTTT": "Tài",
-  "TXXXTTTT": "Tài",
-  "XXXTTTTT": "Xỉu",
-  "XXTTTTTX": "Xỉu",
-  "XTTTTTXX": "Tài",
-  "TTTTTXXT": "Xỉu",
-  "TTTTXXTX": "Tài",
-  "TTTXXTXT": "Tài",
-  "TTXXTXTT": "Tài",
-  "TXXTXTTT": "Tài",
-  "XXTXTTTT": "Xỉu",
-  "XTXTTTTX": "Xỉu",
-  "TXTTTTXX": "Tài",
-  "XTTTTXXT": "Tài",
-  "TTTTXXTT": "Tài",
-  "TTTXXTTT": "Xỉu",
-  "TTXXTTTX": "Xỉu",
-  "TXXTTTXX": "Xỉu",
-  "XXTTTXXX": "Tài",
-  "XTTTXXXT": "Xỉu",
-  "TTTXXXTX": "Xỉu",
-  "TTXXXTXX": "Xỉu",
-  "TXXXTXXX": "Xỉu",
-  "XXXTXXXX": "Tài",
-  "XXTXXXXT": "Xỉu",
-  "XTXXXXTX": "Tài",
-  "TXXXXTXT": "Tài",
-  "XXXXTXTT": "Tài",
-  "XXXTXTTT": "Xỉu",
-  "XXTXTTTX": "Xỉu",
-  "XTXTTTXX": "Tài",
-  "TXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Xỉu",
-  "TXXTXXXX": "Tài",
-  "XXTXXXXT": "Tài",
-  "XTXXXXTT": "Xỉu",
-  "TXXXXTTX": "Tài",
-  "XXXXTTXT": "Xỉu",
-  "XXXTTXTX": "Xỉu",
-  "XXTTXTXX": "Xỉu",
-  "XTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Tài",
-  "TXTXXXXT": "Xỉu",
-  "XTXXXXTX": "Xỉu",
-  "TXXXXTXX": "Xỉu",
-  "XXXXTXXX": "Tài",
-  "XXXTXXXT": "Tài",
-  "XXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Tài",
-  "TXXXTTXT": "Tài",
-  "XXXTTXTT": "Tài",
-  "XXTTXTTT": "Tài",
-  "XTTXTTTT": "Tài",
-  "TTXTTTTT": "Tài",
-  "TXTTTTTT": "Tài",
-  "XTTTTTTT": "Tài",
-  "TTTTTTTT": "Tài",
-  "TTTTTTTT": "Tài",
-  "TTTTTTTT": "Xỉu",
-  "TTTTTTTX": "Tài",
-  "TTTTTTXT": "Xỉu",
-  "TTTTTXTX": "Tài",
-  "TTTTXTXT": "Tài",
-  "TTTXTXTT": "Tài",
-  "TTXTXTTT": "Xỉu",
-  "TXTXTTTX": "Tài",
-  "XTXTTTXT": "Xỉu",
-  "TXTTTXTX": "Xỉu",
-  "XTTTXTXX": "Xỉu",
-  "TTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Xỉu",
-  "TXTXXXXX": "Tài",
-  "XTXXXXXT": "Tài",
-  "TXXXXXTT": "Xỉu",
-  "XXXXXTTX": "Xỉu",
-  "XXXXTTXX": "Xỉu",
-  "XXXTTXXX": "Xỉu",
-  "XXTTXXXX": "Xỉu",
-  "XTTXXXXX": "Xỉu",
-  "TTXXXXXX": "Xỉu",
-  "TXXXXXXX": "Xỉu",
-  "XXXXXXXX": "Xỉu",
-  "XXXXXXXX": "Xỉu",
-  "XXXXXXXX": "Xỉu",
-  "XXXXXXXX": "Xỉu",
-  "XXXXXXXX": "Xỉu",
-  "XXXXXXXX": "Tài",
-  "XXXXXXXT": "Tài",
-  "XXXXXXTT": "Xỉu",
-  "XXXXXTTX": "Tài",
-  "XXXXTTXT": "Xỉu",
-  "XXXTTXTX": "Xỉu",
-  "XXTTXTXX": "Tài",
-  "XTTXTXXT": "Xỉu",
-  "TTXTXXTX": "Tài",
-  "TXTXXTXT": "Tài",
-  "XTXXTXTT": "Tài",
-  "TXXTXTTT": "Tài",
-  "XXTXTTTT": "Tài",
-  "XTXTTTTT": "Tài",
-  "TXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Tài",
-  "TTTTTTXT": "Xỉu",
-  "TTTTTXTX": "Xỉu",
-  "TTTTXTXX": "Xỉu",
-  "TTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Tài",
-  "TXTXXXXT": "Tài",
-  "XTXXXXTT": "Tài",
-  "TXXXXTTT": "Tài",
-  "XXXXTTTT": "Xỉu",
-  "XXXTTTTX": "Xỉu",
-  "XXTTTTXX": "Xỉu",
-  "XTTTTXXX": "Xỉu",
-  "TTTTXXXX": "Tài",
-  "TTTXXXXT": "Xỉu",
-  "TTXXXXTX": "Xỉu",
-  "TXXXXTXX": "Tài",
-  "XXXXTXXT": "Tài",
-  "XXXTXXTT": "Xỉu",
-  "XXTXXTTX": "Tài",
-  "XTXXTTXT": "Xỉu",
-  "TXXTTXTX": "Xỉu",
-  "XXTTXTXX": "Tài",
-  "XTTXTXXT": "Tài",
-  "TTXTXXTT": "Xỉu",
-  "TXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Tài",
-  "TXXTTXXT": "Tài",
-  "XXTTXXTT": "Tài",
-  "XTTXXTTT": "Xỉu",
-  "TTXXTTTX": "Xỉu",
-  "TXXTTTXX": "Xỉu",
-  "XXTTTXXX": "Xỉu",
-  "XTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Xỉu",
-  "TTXXXXXX": "Tài",
-  "TXXXXXXT": "Tài",
-  "XXXXXXTT": "Tài",
-  "XXXXXTTT": "Xỉu",
-  "XXXXTTTX": "Xỉu",
-  "XXXTTTXX": "Xỉu",
-  "XXTTTXXX": "Xỉu",
-  "XTTTXXXX": "Xỉu",
-  "TTTXXXXX": "Xỉu",
-  "TTXXXXXX": "Tài",
-  "TXXXXXXT": "Xỉu",
-  "XXXXXXTX": "Xỉu",
-  "XXXXXTXX": "Tài",
-  "XXXXTXXT": "Tài",
-  "XXXTXXTT": "Xỉu",
-  "XXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Xỉu",
-  "TXXTTXXX": "Xỉu",
-  "XXTTXXXX": "Xỉu",
-  "XTTXXXXX": "Tài",
-  "TTXXXXXT": "Xỉu",
-  "TXXXXXTX": "Tài",
-  "XXXXXTXT": "Tài",
-  "XXXXTXTT": "Tài",
-  "XXXTXTTT": "Tài",
-  "XXTXTTTT": "Tài",
-  "XTXTTTTT": "Xỉu",
-  "TXTTTTTX": "Tài",
-  "XTTTTTXT": "Xỉu",
-  "TTTTTXTX": "Xỉu",
-  "TTTTXTXX": "Tài",
-  "TTTXTXXT": "Tài",
-  "TTXTXXTT": "Tài",
-  "TXTXXTTT": "Tài",
-  "XTXXTTTT": "Tài",
-  "TXXTTTTT": "Xỉu",
-  "XXTTTTTX": "Xỉu",
-  "XTTTTTXX": "Tài",
-  "TTTTTXXT": "Tài",
-  "TTTTXXTT": "Tài",
-  "TTTXXTTT": "Tài",
-  "TTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Tài",
-  "XXTTTTXT": "Tài",
-  "XTTTTXTT": "Xỉu",
-  "TTTTXTTX": "Xỉu",
-  "TTTXTTXX": "Tài",
-  "TTXTTXXT": "Xỉu",
-  "TXTTXXTX": "Xỉu",
-  "XTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Tài",
-  "TXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Tài",
-  "XTXXXTXT": "Xỉu",
-  "TXXXTXTX": "Tài",
-  "XXXTXTXT": "Tài",
-  "XXTXTXTT": "Tài",
-  "XTXTXTTT": "Xỉu",
-  "TXTXTTTX": "Xỉu",
-  "XTXTTTXX": "Tài",
-  "TXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Tài",
-  "TTTXXTXT": "Tài",
-  "TTXXTXTT": "Tài",
-  "TXXTXTTT": "Tài",
-  "XXTXTTTT": "Xỉu",
-  "XTXTTTTX": "Tài",
-  "TXTTTTXT": "Tài",
-  "XTTTTXTT": "Tài",
-  "TTTTXTTT": "Tài",
-  "TTTXTTTT": "Tài",
-  "TTXTTTTT": "Xỉu",
-  "TXTTTTTX": "Tài",
-  "XTTTTTXT": "Tài",
-  "TTTTTXTT": "Xỉu",
-  "TTTTXTTX": "Xỉu",
-  "TTTXTTXX": "Tài",
-  "TTXTTXXT": "Tài",
-  "TXTTXXTT": "Tài",
-  "XTTXXTTT": "Xỉu",
-  "TTXXTTTX": "Xỉu",
-  "TXXTTTXX": "Tài",
-  "XXTTTXXT": "Tài",
-  "XTTTXXTT": "Tài",
-  "TTTXXTTT": "Xỉu",
-  "TTXXTTTX": "Tài",
-  "TXXTTTXT": "Tài",
-  "XXTTTXTT": "Tài",
-  "XTTTXTTT": "Tài",
-  "TTTXTTTT": "Xỉu",
-  "TTXTTTTX": "Tài",
-  "TXTTTTXT": "Xỉu",
-  "XTTTTXTX": "Xỉu",
-  "TTTTXTXX": "Tài",
-  "TTTXTXXT": "Xỉu",
-  "TTXTXXTX": "Tài",
-  "TXTXXTXT": "Xỉu",
-  "XTXXTXTX": "Xỉu",
-  "TXXTXTXX": "Xỉu",
-  "XXTXTXXX": "Tài",
-  "XTXTXXXT": "Tài",
-  "TXTXXXTT": "Tài",
-  "XTXXXTTT": "Xỉu",
-  "TXXXTTTX": "Tài",
-  "XXXTTTXT": "Xỉu",
-  "XXTTTXTX": "Xỉu",
-  "XTTTXTXX": "Xỉu",
-  "TTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Tài",
-  "TXTXXXXT": "Tài",
-  "XTXXXXTT": "Tài",
-  "TXXXXTTT": "Tài",
-  "XXXXTTTT": "Tài",
-  "XXXTTTTT": "Tài",
-  "XXTTTTTT": "Xỉu",
-  "XTTTTTTX": "Xỉu",
-  "TTTTTTXX": "Xỉu",
-  "TTTTTXXX": "Tài",
-  "TTTTXXXT": "Xỉu",
-  "TTTXXXTX": "Xỉu",
-  "TTXXXTXX": "Tài",
-  "TXXXTXXT": "Tài",
-  "XXXTXXTT": "Xỉu",
-  "XXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Tài",
-  "TXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Tài",
-  "XTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Xỉu",
-  "TXXTXTXX": "Tài",
-  "XXTXTXXT": "Tài",
-  "XTXTXXTT": "Tài",
-  "TXTXXTTT": "Xỉu",
-  "XTXXTTTX": "Tài",
-  "TXXTTTXT": "Xỉu",
-  "XXTTTXTX": "Xỉu",
-  "XTTTXTXX": "Xỉu",
-  "TTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Tài",
-  "TXTXXXXT": "Xỉu",
-  "XTXXXXTX": "Xỉu",
-  "TXXXXTXX": "Xỉu",
-  "XXXXTXXX": "Xỉu",
-  "XXXTXXXX": "Xỉu",
-  "XXTXXXXX": "Tài",
-  "XTXXXXXT": "Tài",
-  "TXXXXXTT": "Xỉu",
-  "XXXXXTTX": "Tài",
-  "XXXXTTXT": "Tài",
-  "XXXTTXTT": "Tài",
-  "XXTTXTTT": "Tài",
-  "XTTXTTTT": "Xỉu",
-  "TTXTTTTX": "Tài",
-  "TXTTTTXT": "Xỉu",
-  "XTTTTXTX": "Xỉu",
-  "TTTTXTXX": "Xỉu",
-  "TTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Tài",
-  "TXTXXXXT": "Xỉu",
-  "XTXXXXTX": "Tài",
-  "TXXXXTXT": "Tài",
-  "XXXXTXTT": "Tài",
-  "XXXTXTTT": "Xỉu",
-  "XXTXTTTX": "Xỉu",
-  "XTXTTTXX": "Tài",
-  "TXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Xỉu",
-  "TTTXXTXX": "Xỉu",
-  "TTXXTXXX": "Xỉu",
-  "TXXTXXXX": "Tài",
-  "XXTXXXXT": "Xỉu",
-  "XTXXXXTX": "Tài",
-  "TXXXXTXT": "Tài",
-  "XXXXTXTT": "Tài",
-  "XXXTXTTT": "Xỉu",
-  "XXTXTTTX": "Xỉu",
-  "XTXTTTXX": "Tài",
-  "TXTTTXXT": "Xỉu",
-  "XTTTXXTX": "Tài",
-  "TTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Tài",
-  "TXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Xỉu",
-  "XTXTXTXX": "Xỉu",
-  "TXTXTXXX": "Tài",
-  "XTXTXXXT": "Tài",
-  "TXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Xỉu",
-  "TXXXTTXX": "Tài",
-  "XXXTTXXT": "Tài",
-  "XXTTXXTT": "Tài",
-  "XTTXXTTT": "Xỉu",
-  "TTXXTTTX": "Xỉu",
-  "TXXTTTXX": "Xỉu",
-  "XXTTTXXX": "Tài",
-  "XTTTXXXT": "Xỉu",
-  "TTTXXXTX": "Xỉu",
-  "TTXXXTXX": "Xỉu",
-  "TXXXTXXX": "Tài",
-  "XXXTXXXT": "Xỉu",
-  "XXTXXXTX": "Xỉu",
-  "XTXXXTXX": "Tài",
-  "TXXXTXXT": "Xỉu",
-  "XXXTXXTX": "Tài",
-  "XXTXXTXT": "Xỉu",
-  "XTXXTXTX": "Xỉu",
-  "TXXTXTXX": "Xỉu",
-  "XXTXTXXX": "Tài",
-  "XTXTXXXT": "Tài",
-  "TXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Tài",
-  "TXXXTTXT": "Tài",
-  "XXXTTXTT": "Tài",
-  "XXTTXTTT": "Xỉu",
-  "XTTXTTTX": "Xỉu",
-  "TTXTTTXX": "Tài",
-  "TXTTTXXT": "Tài",
-  "XTTTXXTT": "Tài",
-  "TTTXXTTT": "Xỉu",
-  "TTXXTTTX": "Tài",
-  "TXXTTTXT": "Xỉu",
-  "XXTTTXTX": "Tài",
-  "XTTTXTXT": "Tài",
-  "TTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Tài",
-  "TXTXTTXT": "Xỉu",
-  "XTXTTXTX": "Tài",
-  "TXTTXTXT": "Xỉu",
-  "XTTXTXTX": "Tài",
-  "TTXTXTXT": "Xỉu",
-  "TXTXTXTX": "Tài",
-  "XTXTXTXT": "Xỉu",
-  "TXTXTXTX": "Tài",
-  "XTXTXTXT": "Xỉu",
-  "TXTXTXTX": "Xỉu",
-  "XTXTXTXX": "Xỉu",
-  "TXTXTXXX": "Xỉu",
-  "XTXTXXXX": "Tài",
-  "TXTXXXXT": "Tài",
-  "XTXXXXTT": "Xỉu",
-  "TXXXXTTX": "Xỉu",
-  "XXXXTTXX": "Tài",
-  "XXXTTXXT": "Xỉu",
-  "XXTTXXTX": "Tài",
-  "XTTXXTXT": "Xỉu",
-  "TTXXTXTX": "Xỉu",
-  "TXXTXTXX": "Tài",
-  "XXTXTXXT": "Tài",
-  "XTXTXXTT": "Tài",
-  "TXTXXTTT": "Xỉu",
-  "XTXXTTTX": "Tài",
-  "TXXTTTXT": "Tài",
-  "XXTTTXTT": "Xỉu",
-  "XTTTXTTX": "Tài",
-  "TTTXTTXT": "Xỉu",
-  "TTXTTXTX": "Xỉu",
-  "TXTTXTXX": "Xỉu",
-  "XTTXTXXX": "Tài",
-  "TTXTXXXT": "Tài",
-  "TXTXXXTT": "Xỉu",
-  "XTXXXTTX": "Tài",
-  "TXXXTTXT": "Xỉu",
-  "XXXTTXTX": "Xỉu",
-  "XXTTXTXX": "Tài",
-  "XTTXTXXT": "Xỉu",
-  "TTXTXXTX": "Tài",
-  "TXTXXTXT": "Xỉu",
-  "XTXXTXTX": "Tài",
-  "TXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Xỉu",
-  "XTXTXTXX": "Xỉu",
-  "TXTXTXXX": "Tài",
-  "XTXTXXXT": "Xỉu",
-  "TXTXXXTX": "Xỉu",
-  "XTXXXTXX": "Tài",
-  "TXXXTXXT": "Tài",
-  "XXXTXXTT": "Tài",
-  "XXTXXTTT": "Xỉu",
-  "XTXXTTTX": "Tài",
-  "TXXTTTXT": "Xỉu",
-  "XXTTTXTX": "Xỉu",
-  "XTTTXTXX": "Tài",
-  "TTTXTXXT": "Tài",
-  "TTXTXXTT": "Xỉu",
-  "TXTXXTTX": "Xỉu",
-  "XTXXTTXX": "Xỉu",
-  "TXXTTXXX": "Xỉu",
-  "XXTTXXXX": "Xỉu",
-  "XTTXXXXX": "Xỉu",
-  "TTXXXXXX": "Xỉu",
-  "TXXXXXXX": "Tài",
-  "XXXXXXXT": "Xỉu",
-  "XXXXXXTX": "Xỉu",
-  "XXXXXTXX": "Tài",
-  "XXXXTXXT": "Xỉu",
-  "XXXTXXTX": "Xỉu",
-  "XXTXXTXX": "Tài",
-  "XTXXTXXT": "Tài",
-  "TXXTXXTT": "Tài",
-  "XXTXXTTT": "Xỉu",
-  "XTXXTTTX": "Tài",
-  "TXXTTTXT": "Xỉu",
-  "XXTTTXTX": "Tài",
-  "XTTTXTXT": "Tài",
-  "TTTXTXTT": "Tài",
-  "TTXTXTTT": "Xỉu",
-  "TXTXTTTX": "Tài",
-  "XTXTTTXT": "Tài",
-  "TXTTTXTT": "Xỉu",
-  "XTTTXTTX": "Tài",
-  "TTTXTTXT": "Xỉu",
-  "TTXTTXTX": "Tài",
-  "TXTTXTXT": "Tài",
-  "XTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Xỉu",
-  "TXTXTTXX": "Xỉu",
-  "XTXTTXXX": "Xỉu",
-  "TXTTXXXX": "Tài",
-  "XTTXXXXT": "Xỉu",
-  "TTXXXXTX": "Xỉu",
-  "TXXXXTXX": "Tài",
-  "XXXXTXXT": "Xỉu",
-  "XXXTXXTX": "Xỉu",
-  "X": "Xỉu",
-  "XX": "Tài",
-  "XXT": "Xỉu",
-  "XXTX": "Tài",
-  "XXTXT": "Xỉu",
-  "XXTXTX": "Xỉu",
-  "XXTXTXX": "Xỉu",
-  "XXTXTXXX": "Xỉu",
-  "XTXTXXXX": "Tài",
-  "TXTXXXXT": "Tài",
-  "XTXXXXTT": "Xỉu",
-  "TXXXXTTX": "Tài",
-  "XXXXTTXT": "Xỉu",
-  "XXXTTXTX": "Xỉu",
-  "XXTTXTXX": "Xỉu",
-  "XTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Tài",
-  "TXTXXXXT": "Tài",
-  "XTXXXXTT": "Xỉu",
-  "TXXXXTTX": "Tài",
-  "XXXXTTXT": "Tài",
-  "XXXTTXTT": "Tài",
-  "XXTTXTTT": "Tài",
-  "XTTXTTTT": "Xỉu",
-  "TTXTTTTX": "Xỉu",
-  "TXTTTTXX": "Tài",
-  "XTTTTXXT": "Tài",
-  "TTTTXXTT": "Tài",
-  "TTTXXTTT": "Tài",
-  "TTXXTTTT": "Xỉu",
-  "TXXTTTTX": "Tài",
-  "XXTTTTXT": "Xỉu",
-  "XTTTTXTX": "Tài",
-  "TTTTXTXT": "Tài",
-  "TTTXTXTT": "Xỉu",
-  "TTXTXTTX": "Xỉu",
-  "TXTXTTXX": "Xỉu",
-  "XTXTTXXX": "Xỉu",
-  "TXTTXXXX": "Tài",
-  "XTTXXXXT": "Tài",
-  "TTXXXXTT": "Xỉu",
-  "TXXXXTTX": "Xỉu",
-  "XXXXTTXX": "Xỉu",
-  "XXXTTXXX": "Xỉu",
-  "XXTTXXXX": "Tài",
-  "XTTXXXXT": "Xỉu",
-  "TTXXXXTX": "Xỉu",
-  "TXXXXTXX": "Tài",
-  "XXXXTXXT": "Xỉu",
-  "XXXTXXTX": "Xỉu",
-  "XXTXXTXX": "Xỉu",
-  "XTXXTXXX": "Xỉu",
-  "TXXTXXXX": "Xỉu",
-  "XXTXXXXX": "Xỉu",
-  "XTXXXXXX": "Xỉu",
-  "TXXXXXXX": "Xỉu",
-  "XXXXXXXX": "Tài",
-  "XXXXXXXT": "Xỉu",
-  "XXXXXXTX": "Xỉu",
-  "XXXXXTXX": "Xỉu",
-  "XXXXTXXX": "Tài",
-  "XXXTXXXT": "Tài",
-  "XXTXXXTT": "Tài",
-  "XTXXXTTT": "Tài",
-  "TXXXTTTT": "Xỉu",
-  "XXXTTTTX": "Tài",
-  "XXTTTTXT": "Xỉu",
-  "XTTTTXTX": "Tài",
-  "TTTTXTXT": "Xỉu",
-  "TTTXTXTX": "Xỉu",
-  "TTXTXTXX": "Xỉu",
-  "TXTXTXXX": "Xỉu",
-  "XTXTXXXX": "Tài",
-  "TXTXXXXT": "Tài",
-  "XTXXXXTT": "Tài",
-  "TXXXXTTT": "Xỉu",
-  "XXXXTTTX": "Tài",
-  "XXXTTTXT": "Xỉu",
-  "XXTTTXTX": "Xỉu",
-  "XTTTXTXX": "Xỉu",
-  "TTTXTXXX": "Xỉu",
-  "TTXTXXXX": "Tài",
-  "TXTXXXXT": "Xỉu",
-  "XTXXXXTX": "Tài",
-  "TXXXXTXT": "Xỉu",
-  "XXXXTXTX": "Tài",
-  "XXXTXTXT": "Xỉu",
-  "XXTXTXTX": "Xỉu",
-  "XTXTXTXX": "Xỉu",
-  "TXTXTXXX": "Xỉu",
-  "XTXTXXXX": "Xỉu",
-  "TXTXXXXX": "Xỉu",
-  "XTXXXXXX": "Tài",
-  "TXXXXXXT": "Tài",
-  "XXXXXXTT": "Xỉu",
-  "XXXXXTTX": "Xỉu",
-  "XXXXTTXX": "Xỉu",
-  "XXXTTXXX": "Xỉu",
-  "XXTTXXXX": "Xỉu",
-  "XTTXXXXX": "Tài",
-  "TTXXXXXT": "Tài",
-  "TXXXXXTT": "Tài",
-  "XXXXXTTT": "Xỉu",
-  "XXXXTTTX": "Tài",
-  "XXXTTTXT": "Xỉu",
-  "XXTTTXTX": "Tài",
-  "XTTTXTXT": "Xỉu",
-  "TTTXTXTX": "Xỉu",
-  "TTXTXTXX": "Xỉu",
-  "TXTXTXXX": "Xỉu",
-  "XTXTXXXX": "Tài",
-  "TXTXXXXT": "Tài",
-  "XTXXXXTT": "Xỉu",
-  "TXXXXTTX": "Xỉu",
-  "XXXXTTXX": "Xỉu",
-  "XXXTTXXX": "Tài",
-  "XXTTXXXT": "Tài",
-  "XTTXXXTT": "Tài",
-  "TTXXXTTT": "Xỉu",
-  "TXXXTTTX": "Xỉu",
-};
-
-// ======================================================
-// CACHE & PREDICTION LOG
-// ======================================================
-let cachedHistory = [];
-let predictionLog = [];
-let lastFetchTime = 0;
-
-// ======================================================
-// FETCH HISTORY
-// ======================================================
-async function fetchHistory() {
-  const now = Date.now();
-  if (now - lastFetchTime < CACHE_TTL && cachedHistory.length > 0) return cachedHistory;
-  try {
-    const response = await axios.get(API_URL, { timeout: 10000, headers: { 'User-Agent': 'Mozilla/5.0' } });
-    const raw = response.data;
-    let arr = [];
-    if (Array.isArray(raw)) arr = raw;
-    else if (Array.isArray(raw.data)) arr = raw.data;
-    else if (Array.isArray(raw.history)) arr = raw.history;
-    else if (Array.isArray(raw.result)) arr = raw.result;
-
-    const mapped = arr.map(item => {
-      let result = item.ketQuaThuc || item.result || item.ketqua || item.ket_qua || '';
-      const dices = item.dices || item.dice || [
-        Number(item.Xuc_xac_1 || item.xuc_xac_1 || 0),
-        Number(item.Xuc_xac_2 || item.xuc_xac_2 || 0),
-        Number(item.Xuc_xac_3 || item.xuc_xac_3 || 0)
-      ];
-      const tong = Number(item.tong || item.total || 0) || dices.reduce((a, b) => a + b, 0);
-      if (!result) result = tong >= 11 ? 'Tài' : 'Xỉu';
-      return {
-        phien: Number(item.phien || item.session || item.id || 0),
-        result,
-        dices,
-        tong,
-        thoiGian: item.thoiGian || item.time || new Date().toISOString()
-      };
-    });
-
-    const filtered = mapped.filter(x => x.result === 'Tài' || x.result === 'Xỉu');
-    filtered.sort((a, b) => a.phien - b.phien);
-    cachedHistory = filtered;
-    lastFetchTime = now;
-    updatePredictionLog(filtered);
-    syncAdvancedPredictor(filtered);
-    console.log(`[SUNWIN] fetched ${filtered.length} phiên`);
-    return filtered;
-  } catch (error) {
-    console.error('[SUNWIN] fetch error:', error.message);
-    return cachedHistory;
-  }
-}
-
-function updatePredictionLog(history) {
-  predictionLog = predictionLog.map(entry => {
-    if (entry.dungSai) return entry;
-    const found = history.find(h => h.phien === entry.phien);
-    if (!found) return entry;
-    return {
-      ...entry,
-      ketQuaThuc: found.result,
-      dungSai: found.result === entry.duDoan ? 'Đúng' : 'Sai'
-    };
-  });
-}
-
-// ======================================================
-// PATTERN LOOKUP & FALLBACK
-// ======================================================
-function lookupPattern(history) {
-  if (!history.length) return null;
-  const seq = history.map(h => h.result === 'Tài' ? 'T' : 'X');
-  for (let len = Math.min(8, seq.length); len >= 1; len--) {
-    const key = seq.slice(-len).join('');
-    if (Object.prototype.hasOwnProperty.call(PATTERN_TABLE, key)) {
-      return { prediction: PATTERN_TABLE[key], matchLen: len, key };
-    }
-  }
-  return null;
-}
-
-function fallbackPredict(history) {
-  if (history.length < 5) return { prediction: 'Tài', confidence: 50 };
-  const last5 = history.slice(-5);
-  const tai = last5.filter(x => x.result === 'Tài').length;
-  const xiu = last5.length - tai;
-  if (tai > xiu) return { prediction: 'Xỉu', confidence: 55 };
-  if (xiu > tai) return { prediction: 'Tài', confidence: 55 };
-  return { prediction: 'Tài', confidence: 50 };
-}
-
-// ======================================================
-// DETAILED STATS FOR RESPONSE
-// ======================================================
-function calculateDetailedStats() {
-  const resolved = predictionLog.filter(x => x.dungSai);
-  if (resolved.length === 0) {
-    return {
-      tong_phien_da_doan: predictionLog.length,
-      thang: 0, thua: 0,
-      ti_le_thang_tong: '0.0%',
-      chuoi_thang_hien_tai: 0,
-      chuoi_thang_max: 0,
-      chuoi_thua_hien_tai: 0,
-      chuoi_thua_max: 0
-    };
-  }
-
-  const thang = resolved.filter(x => x.dungSai === 'Đúng').length;
-  const thua = resolved.length - thang;
-  const ti_le_thang_tong = ((thang / resolved.length) * 100).toFixed(1) + '%';
-
-  let maxWin = 0, maxLose = 0, curWin = 0, curLose = 0;
-  for (const entry of resolved) {
-    if (entry.dungSai === 'Đúng') {
-      curWin++; curLose = 0;
-      if (curWin > maxWin) maxWin = curWin;
-    } else {
-      curLose++; curWin = 0;
-      if (curLose > maxLose) maxLose = curLose;
-    }
-  }
-
-  let currentWinStreak = 0, currentLoseStreak = 0;
-  const last = resolved[resolved.length - 1].dungSai;
-  if (last === 'Đúng') {
-    for (let i = resolved.length - 1; i >= 0 && resolved[i].dungSai === 'Đúng'; i--) currentWinStreak++;
-  } else {
-    for (let i = resolved.length - 1; i >= 0 && resolved[i].dungSai === 'Sai'; i--) currentLoseStreak++;
-  }
-
-  return {
-    tong_phien_da_doan: predictionLog.length,
-    thang, thua, ti_le_thang_tong,
-    chuoi_thang_hien_tai: currentWinStreak,
-    chuoi_thang_max: maxWin,
-    chuoi_thua_hien_tai: currentLoseStreak,
-    chuoi_thua_max: maxLose
-  };
-}
-
-// ======================================================
-// ADVANCED PREDICTOR (đầy đủ 21 modules từ thuattoan123.js)
-// ======================================================
-class UltraDicePredictionSystem {
-    constructor() {
-        this.history = [];
-        this.models = {};
-        this.weights = {};
-        this.performance = {};
-        this.patternDatabase = {};
-        this.advancedPatterns = {};
-        this.sessionStats = { streaks: { T: 0, X: 0, maxT: 0, maxX: 0 }, transitions: { TtoT: 0, TtoX: 0, XtoT: 0, XtoX: 0 }, volatility: 0.5, patternConfidence: {}, recentAccuracy: 0, bias: { T: 0, X: 0 } };
-        this.marketState = { trend: 'neutral', momentum: 0, stability: 0.5, regime: 'normal' };
-        this.adaptiveParameters = { patternMinLength: 3, patternMaxLength: 8, volatilityThreshold: 0.7, trendStrengthThreshold: 0.6, patternConfidenceDecay: 0.95, patternConfidenceGrowth: 1.05 };
-        this.previousTopModels = null;
-        this.initAllModels();
-    }
-
-    initAllModels() {
-        for (let i = 1; i <= 21; i++) {
-            this.models[`model${i}`] = this[`model${i}`].bind(this);
-            if (this[`model${i}Mini`]) this.models[`model${i}Mini`] = this[`model${i}Mini`].bind(this);
-            if (this[`model${i}Support1`]) this.models[`model${i}Support1`] = this[`model${i}Support1`].bind(this);
-            if (this[`model${i}Support2`]) this.models[`model${i}Support2`] = this[`model${i}Support2`].bind(this);
-            this.weights[`model${i}`] = 1;
-            this.performance[`model${i}`] = { correct: 0, total: 0, recentCorrect: 0, recentTotal: 0, streak: 0, maxStreak: 0 };
-        }
-        this.initPatternDatabase();
-        this.initAdvancedPatterns();
-        for (let i = 1; i <= 21; i++) {
-            if (this[`model${i}Support3`]) this.models[`model${i}Support3`] = this[`model${i}Support3`].bind(this);
-            if (this[`model${i}Support4`]) this.models[`model${i}Support4`] = this[`model${i}Support4`].bind(this);
-        }
-    }
-
-    initPatternDatabase() {
-        this.patternDatabase = {
-            '1-1': { pattern: ['T', 'X', 'T', 'X'], probability: 0.7, strength: 0.8 },
-            '1-2-1': { pattern: ['T', 'X', 'X', 'T'], probability: 0.65, strength: 0.75 },
-            '2-1-2': { pattern: ['T', 'T', 'X', 'T', 'T'], probability: 0.68, strength: 0.78 },
-            '3-1': { pattern: ['T', 'T', 'T', 'X'], probability: 0.72, strength: 0.82 },
-            '1-3': { pattern: ['T', 'X', 'X', 'X'], probability: 0.72, strength: 0.82 },
-            '2-2': { pattern: ['T', 'T', 'X', 'X'], probability: 0.66, strength: 0.76 },
-            '2-3': { pattern: ['T', 'T', 'X', 'X', 'X'], probability: 0.71, strength: 0.81 },
-            '3-2': { pattern: ['T', 'T', 'T', 'X', 'X'], probability: 0.73, strength: 0.83 },
-            '4-1': { pattern: ['T', 'T', 'T', 'T', 'X'], probability: 0.76, strength: 0.86 },
-            '1-4': { pattern: ['T', 'X', 'X', 'X', 'X'], probability: 0.76, strength: 0.86 },
-        };
-    }
-
-    initAdvancedPatterns() {
-        this.advancedPatterns = {
-            'dynamic-1': {
-                detect: (data) => {
-                    if (data.length < 6) return false;
-                    const last6 = data.slice(-6);
-                    return last6.filter(x => x === 'T').length === 4 && last6[last6.length-1] === 'T';
-                },
-                predict: () => 'X',
-                confidence: 0.72,
-                description: "4T trong 6 phiên"
-            },
-            'dynamic-2': {
-                detect: (data) => {
-                    if (data.length < 8) return false;
-                    const last8 = data.slice(-8);
-                    const tCount = last8.filter(x => x === 'T').length;
-                    return tCount >= 6 && last8[last8.length-1] === 'T';
-                },
-                predict: () => 'X',
-                confidence: 0.78,
-                description: "6+T trong 8 phiên"
-            },
-            'alternating-3': {
-                detect: (data) => {
-                    if (data.length < 5) return false;
-                    const last5 = data.slice(-5);
-                    for (let i = 1; i < last5.length; i++) if (last5[i] === last5[i-1]) return false;
-                    return true;
-                },
-                predict: (data) => data[data.length-1] === 'T' ? 'X' : 'T',
-                confidence: 0.68,
-                description: "5 phiên đan xen"
-            },
-            'cyclic-7': {
-                detect: (data) => {
-                    if (data.length < 14) return false;
-                    return this.arraysEqual(data.slice(-14, -7), data.slice(-7));
-                },
-                predict: (data) => data[data.length-7],
-                confidence: 0.75,
-                description: "Chu kỳ 7 phiên"
-            },
-            'momentum-break': {
-                detect: (data) => {
-                    if (data.length < 9) return false;
-                    const first6 = data.slice(-9, -3);
-                    const last3 = data.slice(-3);
-                    const firstT = first6.filter(x => x === 'T').length;
-                    const firstX = first6.filter(x => x === 'X').length;
-                    return Math.abs(firstT - firstX) >= 4 && new Set(last3).size === 1 && last3[0] !== (firstT > firstX ? 'T' : 'X');
-                },
-                predict: (data) => {
-                    const first6 = data.slice(-9, -3);
-                    const firstT = first6.filter(x => x === 'T').length;
-                    const firstX = first6.filter(x => x === 'X').length;
-                    return firstT > firstX ? 'T' : 'X';
-                },
-                confidence: 0.71,
-                description: "Momentum phá vỡ"
-            },
-            'hybrid-pattern': {
-                detect: (data) => {
-                    if (data.length < 10) return false;
-                    const segment = data.slice(-10);
-                    const tCount = segment.filter(x => x === 'T').length;
-                    const transitions = segment.slice(1).filter((x, i) => x !== segment[i]).length;
-                    return tCount >= 3 && tCount <= 7 && transitions >= 6;
-                },
-                predict: (data) => {
-                    const last = data[data.length-1];
-                    const secondLast = data[data.length-2];
-                    return last === secondLast ? (last === 'T' ? 'X' : 'T') : last;
-                },
-                confidence: 0.65,
-                description: "Pattern hỗn hợp"
-            }
-        };
-    }
-
-    arraysEqual(arr1, arr2) {
-        if (arr1.length !== arr2.length) return false;
-        for (let i = 0; i < arr1.length; i++) if (arr1[i] !== arr2[i]) return false;
-        return true;
-    }
-
-    addResult(result) {
-        if (this.history.length > 0) {
-            const lastResult = this.history[this.history.length-1];
-            const key = `${lastResult}to${result}`;
-            this.sessionStats.transitions[key] = (this.sessionStats.transitions[key] || 0) + 1;
-            if (result === lastResult) {
-                this.sessionStats.streaks[result]++;
-                this.sessionStats.streaks[`max${result}`] = Math.max(this.sessionStats.streaks[`max${result}`], this.sessionStats.streaks[result]);
-            } else {
-                this.sessionStats.streaks[result] = 1;
-                this.sessionStats.streaks[lastResult] = 0;
-            }
-        } else {
-            this.sessionStats.streaks[result] = 1;
-        }
-        this.history.push(result);
-        if (this.history.length > 200) this.history.shift();
-        this.updateVolatility();
-        this.updateMarketState();
-    }
-
-    updateVolatility() {
-        if (this.history.length < 10) return;
-        const recent = this.history.slice(-10);
-        let changes = 0;
-        for (let i = 1; i < recent.length; i++) if (recent[i] !== recent[i-1]) changes++;
-        this.sessionStats.volatility = changes / (recent.length - 1);
-    }
-
-    updateMarketState() {
-        if (this.history.length < 15) return;
-        const recent = this.history.slice(-15);
-        const tCount = recent.filter(x => x === 'T').length;
-        const xCount = recent.filter(x => x === 'X').length;
-        const trendStrength = Math.abs(tCount - xCount) / recent.length;
-        if (trendStrength > this.adaptiveParameters.trendStrengthThreshold) {
-            this.marketState.trend = tCount > xCount ? 'up' : 'down';
-        } else {
-            this.marketState.trend = 'neutral';
-        }
-        let momentum = 0;
-        for (let i = 1; i < recent.length; i++) {
-            if (recent[i] === recent[i-1]) momentum += recent[i] === 'T' ? 0.1 : -0.1;
-        }
-        this.marketState.momentum = Math.tanh(momentum);
-        this.marketState.stability = 1 - this.sessionStats.volatility;
-        if (this.sessionStats.volatility > this.adaptiveParameters.volatilityThreshold) this.marketState.regime = 'volatile';
-        else if (trendStrength > 0.7) this.marketState.regime = 'trending';
-        else if (trendStrength < 0.3) this.marketState.regime = 'random';
-        else this.marketState.regime = 'normal';
-    }
-
-    // Các model 1..21 (định nghĩa đầy đủ)
-    model1() {
-        const recent = this.history.slice(-10);
-        if (recent.length < 4) return null;
-        const patterns = this.model1Mini(recent);
-        if (patterns.length === 0) return null;
-        const best = patterns.reduce((a, b) => a.probability > b.probability ? a : b);
-        return { prediction: best.prediction, confidence: Math.min(0.95, best.probability * 0.8), reason: `Pattern ${best.type}` };
-    }
-    model1Mini(data) {
-        const patterns = [];
-        for (const [type, pdata] of Object.entries(this.patternDatabase)) {
-            const pattern = pdata.pattern;
-            if (data.length < pattern.length) continue;
-            const seg = data.slice(-pattern.length + 1);
-            if (seg.join('-') === pattern.slice(0, -1).join('-')) {
-                patterns.push({ type, prediction: pattern[pattern.length-1], probability: pdata.probability, strength: pdata.strength });
-            }
-        }
-        return patterns;
-    }
-    model1Support1() { return { status: "OK" }; }
-    model1Support2() { return { status: "OK" }; }
-    model1Support3() { return { status: "OK" }; }
-    model1Support4() { return { status: "OK" }; }
-
-    model2() {
-        const short = this.history.slice(-5);
-        const long = this.history.slice(-20);
-        if (short.length < 3 || long.length < 10) return null;
-        const sa = this.model2Mini(short);
-        const la = this.model2Mini(long);
-        let pred, conf;
-        if (sa.trend === la.trend) {
-            pred = sa.trend === 'up' ? 'T' : 'X';
-            conf = (sa.strength + la.strength) / 2;
-        } else {
-            if (sa.strength > la.strength * 1.5) { pred = sa.trend === 'up' ? 'T' : 'X'; conf = sa.strength; }
-            else { pred = la.trend === 'up' ? 'T' : 'X'; conf = la.strength; }
-        }
-        return { prediction: pred, confidence: Math.min(0.95, conf * 0.9), reason: 'Trend' };
-    }
-    model2Mini(data) {
-        const t = data.filter(x => x === 'T').length, x = data.filter(x => x === 'X').length;
-        let trend = t > x ? 'up' : (x > t ? 'down' : 'neutral');
-        let strength = Math.abs(t - x) / data.length;
-        let changes = 0;
-        for (let i = 1; i < data.length; i++) if (data[i] !== data[i-1]) changes++;
-        strength *= (1 - (changes/(data.length-1))/2);
-        return { trend, strength };
-    }
-    model2Support1() { return { status: "OK" }; }
-    model2Support2() { return { status: "OK" }; }
-    model2Support3() { return {}; }
-    model2Support4() { return {}; }
-
-    model3() {
-        const recent = this.history.slice(-12);
-        if (recent.length < 12) return null;
-        const a = this.model3Mini(recent);
-        if (a.difference < 0.4) return null;
-        return { prediction: a.prediction, confidence: Math.min(0.95, a.difference * 0.8), reason: 'Chênh lệch' };
-    }
-    model3Mini(data) {
-        const t = data.filter(x => x === 'T').length, x = data.filter(x => x === 'X').length;
-        return { difference: Math.abs(t - x) / data.length, prediction: t > x ? 'X' : 'T' };
-    }
-    model3Support1() { return { status: "OK" }; }
-    model3Support2() { return { status: "OK" }; }
-    model3Support3() { return {}; }
-    model3Support4() { return {}; }
-
-    model4() {
-        const recent = this.history.slice(-6);
-        if (recent.length < 4) return null;
-        const a = this.model4Mini(recent);
-        if (a.confidence < 0.6) return null;
-        return { prediction: a.prediction, confidence: Math.min(0.95, a.confidence), reason: 'Ngắn hạn' };
-    }
-    model4Mini(data) {
-        const last3 = data.slice(-3);
-        const t = last3.filter(x => x === 'T').length, x = last3.filter(x => x === 'X').length;
-        if (t === 3) return { prediction: 'T', confidence: 0.7 };
-        if (x === 3) return { prediction: 'X', confidence: 0.7 };
-        if (t === 2) return { prediction: 'T', confidence: 0.65 };
-        if (x === 2) return { prediction: 'X', confidence: 0.65 };
-        const changes = data.slice(-4).filter((v, i, a) => i > 0 && v !== a[i-1]).length;
-        if (changes >= 3) return { prediction: data[data.length-1] === 'T' ? 'X' : 'T', confidence: 0.6 };
-        return { prediction: data[data.length-1], confidence: 0.55 };
-    }
-    model4Support1() { return { status: "OK" }; }
-    model4Support2() { return { status: "OK" }; }
-    model4Support3() { return {}; }
-    model4Support4() { return {}; }
-
-    model5() {
-        const preds = this.getAllPredictions();
-        const tCount = Object.values(preds).filter(p => p && p.prediction === 'T').length;
-        const xCount = Object.values(preds).filter(p => p && p.prediction === 'X').length;
-        const total = tCount + xCount;
-        if (total < 5) return null;
-        const diff = Math.abs(tCount - xCount) / total;
-        if (diff > 0.6) return { prediction: tCount > xCount ? 'X' : 'T', confidence: diff * 0.9, reason: 'Cân bằng' };
-        return null;
-    }
-    model5Support1() { return { status: "OK" }; }
-    model5Support2() { return { status: "OK" }; }
-    model5Support3() { return {}; }
-    model5Support4() { return {}; }
-
-    model6() {
-        const trend = this.model2();
-        if (!trend) return null;
-        const cont = this.model6Mini(this.history.slice(-8));
-        const bp = this.model10Mini(this.history);
-        if (cont.streak >= 5 && bp > 0.7) return { prediction: trend.prediction === 'T' ? 'X' : 'T', confidence: bp * 0.8, reason: 'Bẻ cầu' };
-        return { prediction: trend.prediction, confidence: trend.confidence * 0.9, reason: 'Tiếp tục' };
-    }
-    model6Mini(data) {
-        if (data.length < 2) return { streak: 0, direction: 'neutral', maxStreak: 0 };
-        let streak = 1, maxStreak = 1;
-        const dir = data[data.length-1];
-        for (let i = data.length-1; i > 0; i--) {
-            if (data[i] === data[i-1]) { streak++; maxStreak = Math.max(maxStreak, streak); }
-            else break;
-        }
-        return { streak, direction: dir, maxStreak };
-    }
-    model6Support1() { return { status: "OK" }; }
-    model6Support2() { return { status: "OK" }; }
-    model6Support3() { return {}; }
-    model6Support4() { return {}; }
-
-    model7() {
-        const perf = this.model13Mini();
-        const imb = this.model7Mini(perf);
-        if (imb > 0.3) {
-            this.adjustWeights(perf);
-            return { prediction: null, confidence: 0, reason: 'Điều chỉnh trọng số' };
-        }
-        return null;
-    }
-    model7Mini(perf) {
-        const accs = Object.values(perf).map(p => p.accuracy);
-        if (accs.length < 2) return 0;
-        return (Math.max(...accs) - Math.min(...accs)) / Math.max(...accs);
-    }
-    adjustWeights(perf) {
-        const avg = Object.values(perf).reduce((s, p) => s + p.accuracy, 0) / Object.values(perf).length;
-        for (const [m, s] of Object.entries(perf)) {
-            this.weights[m] = Math.max(0.1, Math.min(2, 1 + (s.accuracy - avg) * 2));
-        }
-    }
-    model7Support1() { return { status: "OK" }; }
-    model7Support2() { return { status: "OK" }; }
-    model7Support3() { return {}; }
-    model7Support4() { return {}; }
-
-    model8() {
-        const r = this.model8Mini(this.history.slice(-15));
-        if (r > 0.7) return { prediction: null, confidence: 0, reason: 'Cầu xấu' };
-        return null;
-    }
-    model8Mini(data) {
-        if (data.length < 10) return 0;
-        let changes = 0;
-        for (let i = 1; i < data.length; i++) if (data[i] !== data[i-1]) changes++;
-        const cr = changes / (data.length-1);
-        const t = data.filter(x => x === 'T').length, x = data.filter(x => x === 'X').length;
-        const dist = Math.abs(t - x) / data.length;
-        const pT = t / data.length, pX = x / data.length;
-        let entropy = 0;
-        if (pT > 0) entropy -= pT * Math.log2(pT);
-        if (pX > 0) entropy -= pX * Math.log2(pX);
-        return cr * 0.4 + (1 - dist) * 0.3 + entropy * 0.3;
-    }
-    model8Support1() { return { status: "OK" }; }
-    model8Support2() { return { status: "OK" }; }
-    model8Support3() { return {}; }
-    model8Support4() { return {}; }
-
-    model9() {
-        const recent = this.history.slice(-12);
-        if (recent.length < 8) return null;
-        const patterns = this.model9Mini(recent);
-        if (patterns.length === 0) return null;
-        const best = patterns.reduce((a, b) => a.confidence > b.confidence ? a : b);
-        return { prediction: best.prediction, confidence: Math.min(0.95, best.confidence), reason: `Pattern phức tạp` };
-    }
-    model9Mini(data) {
-        const patterns = [];
-        for (let len = 4; len <= 6; len++) {
-            if (data.length < len) continue;
-            const seg = data.slice(-len);
-            const key = seg.join('-');
-            if (this.patternDatabase[key]) {
-                patterns.push({
-                    type: key,
-                    prediction: this.patternDatabase[key].pattern[this.patternDatabase[key].pattern.length-1],
-                    confidence: this.patternDatabase[key].probability * 0.75
-                });
-            }
-        }
-        return patterns;
-    }
-    model9Support1() { return { status: "OK" }; }
-    model9Support2() { return { status: "OK" }; }
-    model9Support3() { return {}; }
-    model9Support4() { return {}; }
-
-    model10() {
-        const bp = this.model10Mini(this.history);
-        return { prediction: null, confidence: bp, reason: `Xác suất bẻ: ${bp.toFixed(2)}` };
-    }
-    model10Mini(data) {
-        if (data.length < 20) return 0.5;
-        let bc = 0, total = 0;
-        for (let i = 5; i < data.length; i++) {
-            const seg = data.slice(i-5, i);
-            if (this.model6Mini(seg).streak >= 4) {
-                total++;
-                if (data[i] !== seg[seg.length-1]) bc++;
-            }
-        }
-        return total > 0 ? bc / total : 0.5;
-    }
-    model10Support1() { return { status: "OK" }; }
-    model10Support2() { return { status: "OK" }; }
-    model10Support3() { return {}; }
-    model10Support4() { return {}; }
-
-    model11() {
-        const vol = this.model11Mini(this.history.slice(-20));
-        const pred = this.model11Predict(vol);
-        return { prediction: pred.value, confidence: pred.confidence, reason: 'Biến động' };
-    }
-    model11Mini(data) {
-        if (data.length < 10) return { level: 'medium', value: 0.5 };
-        let changes = 0;
-        for (let i = 1; i < data.length; i++) if (data[i] !== data[i-1]) changes++;
-        const cr = changes / (data.length-1);
-        if (cr < 0.3) return { level: 'low', value: cr };
-        if (cr > 0.7) return { level: 'high', value: cr };
-        return { level: 'medium', value: cr };
-    }
-    model11Predict(vol) {
-        if (vol.level === 'low') return { value: this.history[this.history.length-1] || 'T', confidence: 0.7 };
-        if (vol.level === 'high') return { value: Math.random() > 0.5 ? 'T' : 'X', confidence: 0.5 };
-        const trend = this.model2Mini(this.history.slice(-10));
-        return { value: trend.trend === 'up' ? 'T' : 'X', confidence: trend.strength * 0.8 };
-    }
-    model11Support1() { return { status: "OK" }; }
-    model11Support2() { return { status: "OK" }; }
-    model11Support3() { return {}; }
-    model11Support4() { return {}; }
-
-    model12() {
-        const patterns = this.model12Mini(this.history.slice(-8));
-        if (patterns.length === 0) return null;
-        const best = patterns.reduce((a, b) => a.confidence > b.confidence ? a : b);
-        return { prediction: best.prediction, confidence: best.confidence, reason: `Mẫu ngắn: ${best.type}` };
-    }
-    model12Mini(data) {
-        const patterns = [];
-        const short = {
-            'T-X-T': { prediction: 'X', confidence: 0.65 },
-            'X-T-X': { prediction: 'T', confidence: 0.65 },
-            'T-T-X': { prediction: 'X', confidence: 0.7 },
-            'X-X-T': { prediction: 'T', confidence: 0.7 },
-            'T-X-X': { prediction: 'T', confidence: 0.6 },
-            'X-T-T': { prediction: 'X', confidence: 0.6 },
-            'T-T-T-X': { prediction: 'X', confidence: 0.72 },
-            'X-X-X-T': { prediction: 'T', confidence: 0.72 },
-        };
-        for (const [key, val] of Object.entries(short)) {
-            const len = key.split('-').length;
-            if (data.length >= len) {
-                const seg = data.slice(-len).join('-');
-                if (seg === key) patterns.push({ type: key, prediction: val.prediction, confidence: val.confidence });
-            }
-        }
-        return patterns;
-    }
-    model12Support1() { return { status: "OK" }; }
-    model12Support2() { return { status: "OK" }; }
-    model12Support3() { return {}; }
-    model12Support4() { return {}; }
-
-    model13() {
-        const perf = this.model13Mini();
-        const best = Object.entries(perf).reduce((a, b) => a[1].accuracy > b[1].accuracy ? a : b, [null, { accuracy: 0 }]);
-        return { prediction: null, confidence: best[1].accuracy, reason: `Model top: ${best[0]}` };
-    }
-    model13Mini() {
-        const stats = {};
-        for (const m of Object.keys(this.performance)) {
-            const p = this.performance[m];
-            if (p.total > 0) stats[m] = {
-                accuracy: p.correct / p.total,
-                recentAccuracy: p.recentTotal > 0 ? p.recentCorrect / p.recentTotal : 0,
-                total: p.total, recentTotal: p.recentTotal,
-                streak: p.streak, maxStreak: p.maxStreak
-            };
-        }
-        return stats;
-    }
-    model13Support1() { return { status: "OK" }; }
-    model13Support2() { return { status: "OK" }; }
-    model13Support3() { return {}; }
-    model13Support4() { return {}; }
-
-    model14() {
-        const bp = this.model14Mini(this.history);
-        return { prediction: null, confidence: bp, reason: `Xác suất bẻ trend: ${bp.toFixed(2)}` };
-    }
-    model14Mini(data) {
-        if (data.length < 15) return 0.5;
-        let bc = 0, tc = 0;
-        for (let i = 10; i < data.length; i++) {
-            const seg = data.slice(i-10, i);
-            const trend = this.model2Mini(seg);
-            if (trend.strength > 0.6) {
-                tc++;
-                if (data[i] !== (trend.trend === 'up' ? 'T' : 'X')) bc++;
-            }
-        }
-        return tc > 0 ? bc / tc : 0.5;
-    }
-    model14Support1() { return { status: "OK" }; }
-    model14Support2() { return { status: "OK" }; }
-    model14Support3() { return {}; }
-    model14Support4() { return {}; }
-
-    model15() {
-        const trend = this.model2();
-        if (!trend) return null;
-        const bp = this.model14Mini(this.history);
-        const follow = this.model15Mini(trend.confidence, bp);
-        return {
-            prediction: follow ? trend.prediction : (trend.prediction === 'T' ? 'X' : 'T'),
-            confidence: follow ? trend.confidence : 1 - trend.confidence,
-            reason: follow ? 'Theo trend' : 'Bẻ trend'
-        };
-    }
-    model15Mini(tc, bp) { return tc > bp * 1.5; }
-    model15Support1() { return { status: "OK" }; }
-    model15Support2() { return { status: "OK" }; }
-    model15Support3() { return {}; }
-    model15Support4() { return {}; }
-
-    model16() {
-        const bp = this.model16Mini(this.history);
-        return { prediction: null, confidence: bp, reason: `Bẻ tổng hợp: ${bp.toFixed(2)}` };
-    }
-    model16Mini(data) {
-        const p1 = this.model10Mini(data);
-        const p2 = this.model14Mini(data);
-        let rc = 0, rt = 0;
-        for (let i = Math.max(0, data.length-10); i < data.length-1; i++) {
-            if (i >= 5) {
-                const seg = data.slice(i-5, i);
-                if (this.model6Mini(seg).streak >= 3) {
-                    rt++;
-                    if (data[i] !== seg[seg.length-1]) rc++;
-                }
-            }
-        }
-        const p3 = rt > 0 ? rc / rt : 0.5;
-        return p1 * 0.4 + p2 * 0.4 + p3 * 0.2;
-    }
-    model16Support1() { return { status: "OK" }; }
-    model16Support2() { return { status: "OK" }; }
-    model16Support3() { return {}; }
-    model16Support4() { return {}; }
-
-    model17() {
-        const perf = this.model13Mini();
-        const imb = this.model17Mini(perf);
-        if (imb > 0.25) {
-            this.adjustWeightsAdvanced(perf);
-            return { prediction: null, confidence: 0, reason: 'Cân bằng nâng cao' };
-        }
-        return null;
-    }
-    model17Mini(perf) {
-        const accs = Object.values(perf).map(p => p.accuracy);
-        if (accs.length < 2) return 0;
-        const mean = accs.reduce((s, v) => s + v, 0) / accs.length;
-        const variance = accs.reduce((s, v) => s + (v-mean)**2, 0) / accs.length;
-        return Math.sqrt(variance) / mean;
-    }
-    adjustWeightsAdvanced(perf) {
-        const mean = Object.values(perf).reduce((s, p) => s + p.accuracy, 0) / Object.values(perf).length;
-        for (const [m, s] of Object.entries(perf)) {
-            if (s.accuracy > mean * 1.2) this.weights[m] = Math.min(2, this.weights[m] * 1.1);
-            else if (s.accuracy < mean * 0.8) this.weights[m] = Math.max(0.1, this.weights[m] * 0.9);
-        }
-    }
-    model17Support1() { return { status: "OK" }; }
-    model17Support2() { return { status: "OK" }; }
-    model17Support3() { return {}; }
-    model17Support4() { return {}; }
-
-    model18() {
-        const st = this.model18Mini(this.history.slice(-6));
-        return { prediction: st.prediction, confidence: st.confidence, reason: `Ngắn hạn: ${st.trend}` };
-    }
-    model18Mini(data) {
-        if (data.length < 4) return { prediction: null, confidence: 0, trend: '??' };
-        const t = data.filter(x => x === 'T').length, x = data.filter(x => x === 'X').length;
-        if (t > x * 1.5) return { prediction: 'T', confidence: 0.7, trend: 'Mạnh T' };
-        if (x > t * 1.5) return { prediction: 'X', confidence: 0.7, trend: 'Mạnh X' };
-        if (t > x) return { prediction: 'T', confidence: 0.6, trend: 'Nhẹ T' };
-        if (x > t) return { prediction: 'X', confidence: 0.6, trend: 'Nhẹ X' };
-        return { prediction: data[data.length-1] === 'T' ? 'X' : 'T', confidence: 0.55, trend: 'Cân bằng' };
-    }
-    model18Support1() { return { status: "OK" }; }
-    model18Support2() { return { status: "OK" }; }
-    model18Support3() { return {}; }
-    model18Support4() { return {}; }
-
-    model19() {
-        const trends = this.model19Mini(this.history.slice(-30));
-        if (trends.length === 0) return null;
-        const best = trends.reduce((a, b) => a.frequency > b.frequency ? a : b);
-        return { prediction: best.prediction, confidence: best.confidence, reason: `Phổ biến: ${best.pattern}` };
-    }
-    model19Mini(data) {
-        const trends = [];
-        const counter = {};
-        for (let len = 3; len <= 5; len++) {
-            for (let i = 0; i <= data.length - len; i++) {
-                const pat = data.slice(i, i+len).join('-');
-                counter[pat] = (counter[pat] || 0) + 1;
-            }
-        }
-        for (const [pat, count] of Object.entries(counter)) {
-            if (count >= 3) {
-                const parts = pat.split('-');
-                trends.push({
-                    pattern: pat,
-                    prediction: parts[parts.length-1],
-                    frequency: count / (data.length - parts.length + 1),
-                    confidence: Math.min(0.8, count / (data.length - parts.length + 1) * 2)
-                });
-            }
-        }
-        return trends;
-    }
-    model19Support1() { return { status: "OK" }; }
-    model19Support2() { return { status: "OK" }; }
-    model19Support3() { return {}; }
-    model19Support4() { return {}; }
-
-    model20() {
-        const perf = this.model13Mini();
-        const top = Object.entries(perf).filter(([_, s]) => s.total > 10).sort((a, b) => b[1].accuracy - a[1].accuracy).slice(0, 3);
-        if (top.length === 0) return null;
-        let tS = 0, xS = 0;
-        for (const [m] of top) {
-            const p = this.models[m]();
-            if (p && p.prediction) {
-                const w = perf[m].accuracy;
-                if (p.prediction === 'T') tS += w * p.confidence;
-                else xS += w * p.confidence;
-            }
-        }
-        const total = tS + xS;
-        if (total === 0) return null;
-        return { prediction: tS > xS ? 'T' : 'X', confidence: Math.max(tS, xS) / total, reason: `Top ${top.length} models` };
-    }
-    model20Support1() { return { status: "OK" }; }
-    model20Support2() { return { status: "OK" }; }
-    model20Support3() { return {}; }
-    model20Support4() { return {}; }
-
-    model21() {
-        const preds = this.getAllPredictions();
-        const tC = Object.values(preds).filter(p => p && p.prediction === 'T').length;
-        const xC = Object.values(preds).filter(p => p && p.prediction === 'X').length;
-        const total = tC + xC;
-        if (total < 8) return null;
-        const diff = Math.abs(tC - xC) / total;
-        if (diff > 0.5) {
-            const adj = this.model21Mini(preds, diff);
-            let tS = 0, xS = 0;
-            for (const p of Object.values(adj)) {
-                if (p && p.prediction) {
-                    if (p.prediction === 'T') tS += p.confidence;
-                    else xS += p.confidence;
-                }
-            }
-            const st = tS + xS;
-            if (st === 0) return null;
-            return { prediction: tS > xS ? 'T' : 'X', confidence: Math.max(tS, xS) / st, reason: 'Cân bằng tổng' };
-        }
-        return null;
-    }
-    model21Mini(preds, diff) {
-        const adj = {};
-        const factor = 1 - diff;
-        for (const [m, p] of Object.entries(preds)) {
-            if (p) adj[m] = { ...p, confidence: p.confidence * factor };
-        }
-        return adj;
-    }
-    model21Support1() { return { status: "OK" }; }
-    model21Support2() { return { status: "OK" }; }
-    model21Support3() { return {}; }
-    model21Support4() { return {}; }
-
-    getAllPredictions() {
-        const p = {};
-        for (let i = 1; i <= 21; i++) p[`model${i}`] = this.models[`model${i}`]();
-        return p;
-    }
-
-    getFinalPrediction() {
-        const preds = this.getAllPredictions();
-        let tS = 0, xS = 0;
-        for (const [m, p] of Object.entries(preds)) {
-            if (p && p.prediction) {
-                const w = this.weights[m] || 1;
-                if (p.prediction === 'T') tS += w * p.confidence;
-                else xS += w * p.confidence;
-            }
-        }
-        const total = tS + xS;
-        if (total === 0) return null;
-        let pred = tS > xS ? 'T' : 'X';
-        let conf = Math.max(tS, xS) / total;
-        if (this.sessionStats.volatility > 0.7) conf *= 0.8;
-        else if (this.sessionStats.volatility < 0.3) conf = Math.min(0.95, conf * 1.1);
-        return { prediction: pred, confidence: conf };
-    }
-
-    updatePerformance(actual) {
-        const preds = this.getAllPredictions();
-        for (const [m, p] of Object.entries(preds)) {
-            if (p && p.prediction) {
-                const perf = this.performance[m];
-                perf.total++;
-                perf.recentTotal++;
-                if (p.prediction === actual) {
-                    perf.correct++;
-                    perf.recentCorrect++;
-                    perf.streak++;
-                    if (perf.streak > perf.maxStreak) perf.maxStreak = perf.streak;
-                } else {
-                    perf.streak = 0;
-                }
-                if (perf.recentTotal > 50) {
-                    perf.recentTotal--;
-                    if (perf.recentCorrect > 0 && (perf.recentCorrect/perf.recentTotal) > (perf.correct/perf.total)) perf.recentCorrect--;
-                }
-                this.weights[m] = Math.max(0.1, Math.min(2, (perf.correct / perf.total) * 2));
-            }
-        }
-    }
-}
-
-// ======================================================
-// SYNC ADVANCED PREDICTOR
-// ======================================================
-const advancedPredictor = new UltraDicePredictionSystem();
-function syncAdvancedPredictor(history) {
-  advancedPredictor.history = [];
-  advancedPredictor.sessionStats = { streaks: { T: 0, X: 0, maxT: 0, maxX: 0 }, transitions: { TtoT: 0, TtoX: 0, XtoT: 0, XtoX: 0 }, volatility: 0.5, patternConfidence: {}, recentAccuracy: 0, bias: { T: 0, X: 0 } };
-  for (const item of history) advancedPredictor.addResult(item.result === 'Tài' ? 'T' : 'X');
-}
-
-// ======================================================
-// ROUTES
-// ======================================================
-app.get('/', (req, res) => res.json({ status: 'OK', app: 'SUNWIN Predictor', patterns: Object.keys(PATTERN_TABLE).length + ' mẫu' }));
-
-app.get('/taixiu', async (req, res) => {
-  try {
-    const history = await fetchHistory();
-    if (!history.length) return res.json({ error: 'Không có dữ liệu' });
-    const current = history[history.length-1];
-    const nextPhien = current.phien + 1;
-
-    // Pattern cơ bản
-    const pattern = lookupPattern(history);
-    let prediction, confidence, method;
-    if (pattern) {
-      prediction = pattern.prediction;
-      confidence = Math.min(55 + pattern.matchLen * 4, 92);
-      method = `pattern_${pattern.matchLen}`;
-    } else {
-      const fb = fallbackPredict(history);
-      prediction = fb.prediction;
-      confidence = fb.confidence;
-      method = 'fallback';
-    }
-
-    // Ghi log
-    if (!predictionLog.find(x => x.phien === nextPhien)) {
-      predictionLog.push({ phien: nextPhien, duDoan: prediction, ketQuaThuc: null, dungSai: null, time: new Date().toISOString() });
-    }
-
-    // Dự đoán VIP
-    const vip = advancedPredictor.getFinalPrediction();
-    const vipKetQua = vip ? (vip.prediction === 'T' ? 'XiU' : 'TAI') : 'Không xác định';
-    const vipTinCay = vip ? Math.round(vip.confidence * 100) : 0;
-
-    // Thống kê chi tiết
-    const stats = calculateDetailedStats();
-
-    res.json({
-      copyright: "@vualovn",
-      thong_tin_phien_truoc: {
-        id: current.phien,
-        ket_qua: current.result === 'Tài' ? 'TAI' : 'XIU',
-        diem: current.tong
-      },
-      du_doan_vip: {
-        phien_tiep_theo: nextPhien,
-        ket_qua: vipKetQua,
-        ti_le_tin_cay: `${vipTinCay}%`,
-        thuat_toan_hoat_dong: "API MÚP NHƯ EM TRẦN HÀ LINH"
-      },
-      chi_tiet_md5: { entropy: "0.000", energy: 0, density: "0.000" },
-      thong_ke_hoc_tap_sunwin: stats,
-      // Giữ lại các trường cũ nếu cần
-      phien_du_doan: nextPhien,
-      du_doan: prediction,
-      do_tin_cay: `${Math.round(confidence)}%`,
-      phuong_phap: method
-    });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-app.get('/history', async (req, res) => {
-  try {
-    const history = await fetchHistory();
-    res.json({ total: history.length, data: history.slice(-50) });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.get('/stats', async (req, res) => {
-  try {
-    await fetchHistory();
-    res.json({ detailed: calculateDetailedStats() });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.get('/log', (req, res) => res.json({ total: predictionLog.length, log: predictionLog.slice(-100) }));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`[SUNWIN] running on ${PORT}`));
+
+const API_URL =
+    "https://sunlol-zv7x.onrender.com/api/history";
+
+// ======================================================
+// FORMAT DATA
+// ======================================================
+
+function normalizeData(data) {
+
+    return data.map(item => {
+
+        const tong =
+            item.tong ||
+            item.total ||
+            (
+                (item.x1 || 0) +
+                (item.x2 || 0) +
+                (item.x3 || 0)
+            );
+
+        return {
+
+            phien:
+                item.phien ||
+                item.session ||
+                0,
+
+            result:
+                item.ket_qua ||
+                item.result ||
+                (tong >= 11 ? "Tài" : "Xỉu"),
+
+            tong,
+
+            dices: [
+                item.x1 || 0,
+                item.x2 || 0,
+                item.x3 || 0
+            ]
+        };
+    });
+}
+
+// ======================================================
+// THUẬT TOÁN 1
+// PHÂN TÍCH XU HƯỚNG + ĐIỂM CHUYỂN
+// ======================================================
+
+function predictTrendAndSwitch(history) {
+
+    if (!history || history.length < 5) {
+
+        return {
+            prediction: 0,
+            confidence: 0
+        };
+    }
+
+    const recent =
+        history
+            .slice(-5)
+            .map(h => h.result);
+
+    let taiCount =
+        recent.filter(
+            r => r === "Tài"
+        ).length;
+
+    let xiuCount =
+        recent.filter(
+            r => r === "Xỉu"
+        ).length;
+
+    let prediction = 0;
+
+    if (taiCount > xiuCount)
+        prediction = 1;
+
+    else if (xiuCount > taiCount)
+        prediction = 2;
+
+    return {
+
+        prediction,
+
+        confidence:
+            Math.max(
+                taiCount,
+                xiuCount
+            ) / 5
+    };
+}
+
+// ======================================================
+// THUẬT TOÁN 2
+// STREAK + BREAK
+// ======================================================
+
+function detectStreakAndBreak(history) {
+
+    if (
+        !history ||
+        history.length === 0
+    ) {
+
+        return {
+
+            streak: 0,
+
+            currentResult: null,
+
+            breakProb: 0,
+
+            prediction: 0
+        };
+    }
+
+    let streak = 1;
+
+    const currentResult =
+        history[
+            history.length - 1
+        ].result;
+
+    for (
+        let i =
+            history.length - 2;
+        i >= 0;
+        i--
+    ) {
+
+        if (
+            history[i].result ===
+            currentResult
+        ) {
+            streak++;
+        } else {
+            break;
+        }
+    }
+
+    const last20 =
+        history
+            .slice(-20)
+            .map(h => h.result);
+
+    const switches =
+        last20
+            .slice(1)
+            .reduce(
+                (
+                    count,
+                    curr,
+                    idx
+                ) => {
+
+                    return count +
+                        (
+                            curr !==
+                            last20[idx]
+                                ? 1
+                                : 0
+                        );
+                },
+                0
+            );
+
+    const taiCount =
+        last20.filter(
+            r => r === "Tài"
+        ).length;
+
+    const xiuCount =
+        last20.filter(
+            r => r === "Xỉu"
+        ).length;
+
+    const imbalance =
+        Math.abs(
+            taiCount - xiuCount
+        ) / last20.length;
+
+    let breakProb = 0;
+
+    if (streak >= 8) {
+
+        breakProb =
+            Math.min(
+                0.6 +
+                    switches / 20 +
+                    imbalance * 0.15,
+                0.95
+            );
+
+    } else if (streak >= 4) {
+
+        breakProb =
+            Math.min(
+                0.4 +
+                    switches / 30 +
+                    imbalance * 0.1,
+                0.7
+            );
+
+    } else {
+
+        breakProb = 0.2;
+    }
+
+    let prediction =
+        currentResult === "Tài"
+            ? 1
+            : 2;
+
+    if (breakProb > 0.5) {
+
+        prediction =
+            prediction === 1
+                ? 2
+                : 1;
+    }
+
+    return {
+
+        streak,
+
+        currentResult,
+
+        breakProb,
+
+        prediction
+    };
+}
+
+// ======================================================
+// THUẬT TOÁN 3
+// PATTERN
+// ======================================================
+
+function predictAIHTDD(history) {
+
+    if (
+        !history ||
+        history.length < 3
+    ) {
+
+        return {
+            prediction: "Tài",
+            confidence: 0
+        };
+    }
+
+    const last3 =
+        history
+            .slice(-3)
+            .map(h => h.result)
+            .join("-");
+
+    const patterns = {
+
+        "Tài-Tài-Tài":
+            "Xỉu",
+
+        "Xỉu-Xỉu-Xỉu":
+            "Tài",
+
+        "Tài-Xỉu-Tài":
+            "Xỉu",
+
+        "Xỉu-Tài-Xỉu":
+            "Tài",
+
+        "Tài-Tài-Xỉu":
+            "Xỉu",
+
+        "Xỉu-Xỉu-Tài":
+            "Tài"
+    };
+
+    return {
+
+        prediction:
+            patterns[last3] ||
+            (
+                Math.random() > 0.5
+                    ? "Tài"
+                    : "Xỉu"
+            ),
+
+        confidence: 0.6
+    };
+}
+
+// ======================================================
+// BAD PATTERN
+// ======================================================
+
+function isBadPattern(history) {
+
+    if (history.length < 5)
+        return false;
+
+    const last5 =
+        history
+            .slice(-5)
+            .map(h => h.result)
+            .join("");
+
+    return (
+        last5 ===
+            "TàiXỉuTàiXỉuTài" ||
+
+        last5 ===
+            "XỉuTàiXỉuTàiXỉu"
+    );
+}
+
+// ======================================================
+// MARKOV
+// ======================================================
+
+function predictMarkov(history) {
+
+    const arr =
+        history.map(h =>
+            h.result === "Tài"
+                ? "T"
+                : "X"
+        );
+
+    const seq =
+        arr.join("");
+
+    if (seq.length < 4)
+        return null;
+
+    let best = null;
+
+    let bestConf = 0;
+
+    for (
+        let order = 3;
+        order <= 5;
+        order++
+    ) {
+
+        const last =
+            seq.slice(-order);
+
+        const trans = {};
+
+        for (
+            let i = 0;
+            i <=
+            seq.length -
+                order -
+                1;
+            i++
+        ) {
+
+            const pat =
+                seq.slice(
+                    i,
+                    i + order
+                );
+
+            const next =
+                seq[i + order];
+
+            if (!trans[pat]) {
+
+                trans[pat] = {
+                    T: 0,
+                    X: 0
+                };
+            }
+
+            trans[pat][next]++;
+        }
+
+        const possible =
+            trans[last];
+
+        if (!possible)
+            continue;
+
+        const total =
+            possible.T +
+            possible.X;
+
+        const conf =
+            (
+                Math.max(
+                    possible.T,
+                    possible.X
+                ) / total
+            ) * 100;
+
+        if (conf > bestConf) {
+
+            bestConf = conf;
+
+            best =
+                possible.T >
+                possible.X
+                    ? "Tài"
+                    : "Xỉu";
+        }
+    }
+
+    return best
+        ? {
+              prediction: best,
+              confidence:
+                  bestConf / 100
+          }
+        : null;
+}
+
+// ======================================================
+// ENSEMBLE FULL
+// ======================================================
+
+function getEnsemblePrediction(history) {
+
+    const trendPred =
+        predictTrendAndSwitch(
+            history
+        );
+
+    const bridgePred =
+        detectStreakAndBreak(
+            history
+        );
+
+    const aiPred =
+        predictAIHTDD(
+            history
+        );
+
+    const markovPred =
+        predictMarkov(
+            history
+        );
+
+    const weights = {
+
+        trend: 0.25,
+
+        bridge: 0.25,
+
+        pattern: 0.2,
+
+        markov: 0.3
+    };
+
+    let taiScore = 0;
+
+    let xiuScore = 0;
+
+    // TREND
+    if (
+        trendPred.prediction === 1
+    ) {
+
+        taiScore +=
+            weights.trend *
+            trendPred.confidence;
+
+    } else if (
+        trendPred.prediction === 2
+    ) {
+
+        xiuScore +=
+            weights.trend *
+            trendPred.confidence;
+    }
+
+    // BREAK
+    if (
+        bridgePred.prediction ===
+        1
+    ) {
+
+        taiScore +=
+            weights.bridge *
+            (
+                1 -
+                bridgePred.breakProb
+            );
+
+    } else {
+
+        xiuScore +=
+            weights.bridge *
+            (
+                1 -
+                bridgePred.breakProb
+            );
+    }
+
+    // PATTERN
+    if (
+        aiPred.prediction ===
+        "Tài"
+    ) {
+
+        taiScore +=
+            weights.pattern *
+            aiPred.confidence;
+
+    } else {
+
+        xiuScore +=
+            weights.pattern *
+            aiPred.confidence;
+    }
+
+    // MARKOV
+    if (markovPred) {
+
+        if (
+            markovPred.prediction ===
+            "Tài"
+        ) {
+
+            taiScore +=
+                weights.markov *
+                markovPred.confidence;
+
+        } else {
+
+            xiuScore +=
+                weights.markov *
+                markovPred.confidence;
+        }
+    }
+
+    // BAD PATTERN
+    if (
+        isBadPattern(history)
+    ) {
+
+        taiScore *= 0.9;
+
+        xiuScore *= 0.9;
+    }
+
+    // CÂN BẰNG
+    const last10 =
+        history
+            .slice(-10)
+            .map(h => h.result);
+
+    const tai10 =
+        last10.filter(
+            r => r === "Tài"
+        ).length;
+
+    if (tai10 >= 7) {
+
+        xiuScore += 0.15;
+
+    } else if (tai10 <= 3) {
+
+        taiScore += 0.15;
+    }
+
+    const total =
+        taiScore + xiuScore;
+
+    const finalPred =
+        taiScore > xiuScore
+            ? "Tài"
+            : "Xỉu";
+
+    const confidence =
+        total > 0
+            ? (
+                  Math.max(
+                      taiScore,
+                      xiuScore
+                  ) / total
+              ) * 100
+            : 50;
+
+    return {
+
+        prediction:
+            finalPred,
+
+        confidence:
+            Math.round(
+                confidence
+            ),
+
+        streak:
+            bridgePred.streak
+    };
+}
+
+// ======================================================
+// STATS
+// ======================================================
+
+function calculateStats(history) {
+
+    const arr =
+        history.map(
+            h => h.result
+        );
+
+    let currentWin = 1;
+
+    let currentLose = 1;
+
+    let maxWin = 1;
+
+    let maxLose = 1;
+
+    const last =
+        arr[arr.length - 1];
+
+    for (
+        let i = arr.length - 2;
+        i >= 0;
+        i--
+    ) {
+
+        if (arr[i] === last)
+            currentWin++;
+
+        else
+            break;
+    }
+
+    for (
+        let i = arr.length - 2;
+        i >= 0;
+        i--
+    ) {
+
+        if (arr[i] !== last)
+            currentLose++;
+
+        else
+            break;
+    }
+
+    let tempWin = 1;
+
+    let tempLose = 1;
+
+    for (
+        let i = 1;
+        i < arr.length;
+        i++
+    ) {
+
+        if (
+            arr[i] ===
+            arr[i - 1]
+        ) {
+
+            tempWin++;
+
+            maxWin =
+                Math.max(
+                    maxWin,
+                    tempWin
+                );
+
+        } else {
+
+            tempWin = 1;
+        }
+
+        if (
+            arr[i] !==
+            arr[i - 1]
+        ) {
+
+            tempLose++;
+
+            maxLose =
+                Math.max(
+                    maxLose,
+                    tempLose
+                );
+
+        } else {
+
+            tempLose = 1;
+        }
+    }
+
+    return {
+
+        chuoi_thang_hien_tai:
+            currentWin,
+
+        chuoi_thang_max:
+            maxWin,
+
+        chuoi_thua_hien_tai:
+            currentLose,
+
+        chuoi_thua_max:
+            maxLose
+    };
+}
+
+// ======================================================
+// API
+// ======================================================
+
+app.get("/taixiu", async (req, res) => {
+
+    try {
+
+        const response =
+            await axios.get(
+                API_URL
+            );
+
+        const rawData =
+            response.data;
+
+        const history =
+            normalizeData(
+                rawData
+            );
+
+        if (
+            history.length < 10
+        ) {
+
+            return res.json({
+                error:
+                    "Không đủ dữ liệu"
+            });
+        }
+
+        const latest =
+            history[
+                history.length - 1
+            ];
+
+        const predict =
+            getEnsemblePrediction(
+                history
+            );
+
+        const stats =
+            calculateStats(
+                history
+            );
+
+        res.json({
+
+            phien:
+                latest.phien + 1,
+
+            du_doan:
+                predict.prediction,
+
+            do_tin_cay:
+                predict.confidence +
+                "%",
+
+            phien_truoc: {
+
+                phien:
+                    latest.phien,
+
+                xuc_xac:
+                    latest.dices,
+
+                ket_qua:
+                    latest.result
+            },
+
+            chuoi_thang_hien_tai:
+                stats.chuoi_thang_hien_tai,
+
+            chuoi_thang_max:
+                stats.chuoi_thang_max,
+
+            chuoi_thua_hien_tai:
+                stats.chuoi_thua_hien_tai,
+
+            chuoi_thua_max:
+                stats.chuoi_thua_max
+        });
+
+    } catch (err) {
+
+        console.log(err);
+
+        res.status(500).json({
+
+            error:
+                "Lỗi lấy dữ liệu"
+        });
+    }
+});
+
+// ======================================================
+
+app.get("/", (req, res) => {
+
+    res.send(
+        "SERVER ONLINE"
+    );
+});
+
+// ======================================================
+
+app.listen(PORT, () => {
+
+    console.log(
+        "Server running:",
+        PORT
+    );
+});

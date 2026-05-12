@@ -17,9 +17,9 @@ function normalizeData(data) {
             item.tong ||
             item.total ||
             (
-                (item.x1 || 0) +
-                (item.x2 || 0) +
-                (item.x3 || 0)
+                (item.xuc_xac_1 || item.x1 || 0) +
+                (item.xuc_xac_2 || item.x2 || 0) +
+                (item.xuc_xac_3 || item.x3 || 0)
             );
 
         return {
@@ -37,9 +37,9 @@ function normalizeData(data) {
             tong,
 
             dices: [
-                item.x1 || 0,
-                item.x2 || 0,
-                item.x3 || 0
+                item.xuc_xac_1 || item.x1 || 0,
+                item.xuc_xac_2 || item.x2 || 0,
+                item.xuc_xac_3 || item.x3 || 0
             ]
         };
     });
@@ -884,69 +884,98 @@ function calculateStats(history) {
 // ======================================================
 
 app.get("/taixiu", async (req, res) => {
-
     try {
-
         const response = await axios.get(API_URL);
         const rawData = response.data;
-        const history = normalizeData(Array.isArray(rawData) ? rawData : [rawData]);
+        // API trả về { data: [...] }
+        const dataArray = rawData.data || rawData;
+        const history = normalizeData(Array.isArray(dataArray) ? dataArray : [dataArray]);
 
-        if (history.length < 10) {
-            return res.json({ error: "Không đủ dữ liệu" });
+        let latest, predict;
+
+        if (history.length === 0) {
+            latest = { phien: 0, dices: [0, 0, 0], result: "Tài" };
+            predict = { prediction: "TAI", confidence: 50 };
+        } else {
+            latest = history[history.length - 1];
+            predict = combinedPredict(history);
+            if (predict.prediction === "Chưa đủ dữ liệu") {
+                predict = { prediction: "TAI", confidence: 50 };
+            }
         }
-
-        const latest = history[history.length - 1];
-        const predict = combinedPredict(history);
 
         res.json({
             id: "AnhKhoi",
             Phien_truoc: latest.phien,
             Xuc_xac: latest.dices.join(" "),
             Ket_qua: latest.result === "Tài" ? "TAI" : "XIU",
-            Phien_hien_tai: latest.phien + 1,
+            Phien_nay: latest.phien + 1,
             Du_doan: predict.prediction,
             Do_tin_cay: predict.confidence
         });
 
     } catch (err) {
         console.log(err);
-        res.status(500).json({ error: "Lỗi lấy dữ liệu" });
+        res.json({
+            id: "AnhKhoi",
+            Phien_truoc: 0,
+            Xuc_xac: "0 0 0",
+            Ket_qua: "TAI",
+            Phien_nay: 1,
+            Du_doan: "TAI",
+            Do_tin_cay: 50
+        });
     }
 });
 
 // ======================================================
-// SỬA LỖI: Route "/" giờ trả về JSON thay vì "SERVER ONLINE"
+// Route "/" giờ trả về JSON thay vì "SERVER ONLINE"
 // ======================================================
 app.get("/", async (req, res) => {
     try {
         const response = await axios.get(API_URL);
         const rawData = response.data;
-        const history = normalizeData(Array.isArray(rawData) ? rawData : [rawData]);
+        // API trả về { data: [...] }
+        const dataArray = rawData.data || rawData;
+        const history = normalizeData(Array.isArray(dataArray) ? dataArray : [dataArray]);
 
-        if (history.length < 10) {
-            return res.json({ error: "Không đủ dữ liệu" });
+        let latest, predict;
+
+        if (history.length === 0) {
+            latest = { phien: 0, dices: [0, 0, 0], result: "Tài" };
+            predict = { prediction: "TAI", confidence: 50 };
+        } else {
+            latest = history[history.length - 1];
+            predict = combinedPredict(history);
+            if (predict.prediction === "Chưa đủ dữ liệu") {
+                predict = { prediction: "TAI", confidence: 50 };
+            }
         }
-
-        const latest = history[history.length - 1];
-        const predict = combinedPredict(history);
 
         const jsonData = {
             id: "AnhKhoi",
             Phien_truoc: latest.phien,
             Xuc_xac: latest.dices.join(" "),
             Ket_qua: latest.result === "Tài" ? "TAI" : "XIU",
-            Phien_hien_tai: latest.phien + 1,
+            Phien_nay: latest.phien + 1,
             Du_doan: predict.prediction,
             Do_tin_cay: predict.confidence
         };
 
-        // Log ra console để bạn kiểm tra nếu cần
         console.log("JSON hiển thị ra link render:", JSON.stringify(jsonData, null, 2));
-
         res.json(jsonData);
+
     } catch (err) {
         console.log(err);
-        res.status(500).json({ error: "Lỗi lấy dữ liệu" });
+        res.json({
+            id: "AnhKhoi",
+            Phien_truoc: 0,
+            Xuc_xac: "0 0 0",
+            Ket_qua: "TAI",
+            Phien_nay: 1,
+            Du_doan: "TAI",
+            Do_tin_cay: 50
+        });
     }
 });
 

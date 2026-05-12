@@ -903,7 +903,7 @@ app.get("/taixiu", async (req, res) => {
             Phien_truoc: latest.phien,
             Xuc_xac: latest.dices.join(" "),
             Ket_qua: latest.result === "Tài" ? "TAI" : "XIU",
-            Phien_nay: latest.phien + 1,
+            Phien_hien_tai: latest.phien + 1,
             Du_doan: predict.prediction,
             Do_tin_cay: predict.confidence
         });
@@ -915,9 +915,39 @@ app.get("/taixiu", async (req, res) => {
 });
 
 // ======================================================
+// SỬA LỖI: Route "/" giờ trả về JSON thay vì "SERVER ONLINE"
+// ======================================================
+app.get("/", async (req, res) => {
+    try {
+        const response = await axios.get(API_URL);
+        const rawData = response.data;
+        const history = normalizeData(Array.isArray(rawData) ? rawData : [rawData]);
 
-app.get("/", (req, res) => {
-    res.send("SERVER ONLINE");
+        if (history.length < 10) {
+            return res.json({ error: "Không đủ dữ liệu" });
+        }
+
+        const latest = history[history.length - 1];
+        const predict = combinedPredict(history);
+
+        const jsonData = {
+            id: "AnhKhoi",
+            Phien_truoc: latest.phien,
+            Xuc_xac: latest.dices.join(" "),
+            Ket_qua: latest.result === "Tài" ? "TAI" : "XIU",
+            Phien_hien_tai: latest.phien + 1,
+            Du_doan: predict.prediction,
+            Do_tin_cay: predict.confidence
+        };
+
+        // Log ra console để bạn kiểm tra nếu cần
+        console.log("JSON hiển thị ra link render:", JSON.stringify(jsonData, null, 2));
+
+        res.json(jsonData);
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ error: "Lỗi lấy dữ liệu" });
+    }
 });
 
 // ======================================================

@@ -22,6 +22,7 @@ function normalizeData(data) {
             return {
                 phien: item.phien || item.session || item.id || 0,
                 x1: d1, x2: d2, x3: d3,
+                xuc_xac_1: d1, xuc_xac_2: d2, xuc_xac_3: d3,
                 tong: tong,
                 ket_qua: ketQua === "tài" ? "tài" : "xỉu",
                 result: ketQua === "tài" ? "Tài" : "Xỉu",
@@ -351,63 +352,286 @@ class MachineLearningEngine {
 }
 
 // ======================================================
-// 10. PATTERN DETECTORS
+// 10. SUPER CAU DETECTION - 20 PHIEN GAN NHAT
 // ======================================================
-const PatternDetectors = {
-    detect_1_1: (history) => {
-        const last4 = history.slice(-4).join('');
-        if (last4 === "TXTX") return { pred: 'X', conf: 88 };
-        if (last4 === "XTXT") return { pred: 'T', conf: 88 };
-        return null;
-    },
-    detect_2_2: (history) => {
-        const last4 = history.slice(-4).join('');
-        if (last4 === "TTXX") return { pred: 'X', conf: 82 };
-        if (last4 === "XXTT") return { pred: 'T', conf: 82 };
-        return null;
-    },
-    detect_3_3: (history) => {
-        const last6 = history.slice(-6).join('');
-        if (last6 === "TTTXXX") return { pred: 'X', conf: 78 };
-        if (last6 === "XXXTTT") return { pred: 'T', conf: 78 };
-        return null;
-    },
-    detect_1_2_3: (history) => {
-        const last6 = history.slice(-6).join('');
-        if (last6 === "TXXTTT") return { pred: 'X', conf: 77 };
-        if (last6 === "XTTXXX") return { pred: 'T', conf: 77 };
-        return null;
-    },
-    detect_triangle: (history) => {
-        const last5 = history.slice(-5).join('');
-        if (last5 === "TXTXT") return { pred: 'X', conf: 80 };
-        if (last5 === "XTXTX") return { pred: 'T', conf: 80 };
-        return null;
-    },
-    detect_dragon: (history) => {
-        let tRun = 0;
-        for (let i = history.length - 1; i >= 0; i--) {
-            if (history[i] === 'T') tRun++;
-            else break;
-        }
-        if (tRun >= 6) return { pred: 'X', conf: 82 };
-        if (tRun >= 4) return { pred: 'T', conf: 72 };
-        return null;
-    },
-    detect_tiger: (history) => {
-        let xRun = 0;
-        for (let i = history.length - 1; i >= 0; i--) {
-            if (history[i] === 'X') xRun++;
-            else break;
-        }
-        if (xRun >= 6) return { pred: 'T', conf: 82 };
-        if (xRun >= 4) return { pred: 'X', conf: 72 };
-        return null;
+function detectAllCau(history) {
+    const results = history.map(h => h.result === 'Tài' ? 'T' : 'X');
+    const n = results.length;
+    if (n < 5) return [];
+    let caus = [];
+
+    // 1. CAU BIET
+    let streak = 1;
+    for (let i = n - 2; i >= 0; i--) {
+        if (results[i] === results[n - 1]) streak++;
+        else break;
     }
-};
+    if (streak >= 3) {
+        let maxStreak = 0;
+        for (let i = 1; i < n; i++) {
+            let s = 1;
+            for (let j = i - 1; j >= 0 && results[j] === results[i]; j--) s++;
+            if (s > maxStreak) maxStreak = s;
+        }
+        let breakProb = Math.min(0.9, 0.3 + streak * 0.05 + (streak >= maxStreak ? 0.1 : 0));
+        caus.push({
+            type: 'biet',
+            name: 'Bệt ' + streak + ' ' + (results[n - 1] === 'T' ? 'Tài' : 'Xỉu'),
+            predict: breakProb > 0.6 ? (results[n - 1] === 'T' ? 'X' : 'T') : results[n - 1],
+            confidence: 55 + streak * 3,
+            priority: 10
+        });
+    }
+
+    // 2. CAU 1-1
+    if (n >= 6) {
+        let is11 = true;
+        for (let i = n - 5; i < n; i++) {
+            if (results[i] === results[i - 1]) { is11 = false; break; }
+        }
+        if (is11) {
+            caus.push({
+                type: '1-1',
+                name: 'Cầu 1-1',
+                predict: results[n - 1] === 'T' ? 'X' : 'T',
+                confidence: 75,
+                priority: 9
+            });
+        }
+    }
+
+    // 3. CAU 2-2
+    if (n >= 8) {
+        let last8 = results.slice(-8);
+        let is22 = true;
+        for (let i = 0; i < 8; i += 2) {
+            if (last8[i] !== last8[i + 1]) { is22 = false; break; }
+        }
+        if (is22 && last8[0] !== last8[2]) {
+            let phase = n % 2;
+            caus.push({
+                type: '2-2',
+                name: 'Cầu 2-2',
+                predict: phase === 0 ? last8[7] : (last8[7] === 'T' ? 'X' : 'T'),
+                confidence: 78,
+                priority: 8
+            });
+        }
+    }
+
+    // 4. CAU 3-3
+    if (n >= 12) {
+        let last12 = results.slice(-12);
+        let is33 = true;
+        for (let i = 0; i < 12; i += 3) {
+            if (last12[i] !== last12[i + 1] || last12[i] !== last12[i + 2]) { is33 = false; break; }
+        }
+        if (is33 && last12[0] !== last12[3]) {
+            let phase = n % 3;
+            caus.push({
+                type: '3-3',
+                name: 'Cầu 3-3',
+                predict: phase === 0 ? (last12[11] === 'T' ? 'X' : 'T') : last12[11],
+                confidence: 80,
+                priority: 7
+            });
+        }
+    }
+
+    // 5. CAU 1-2-3
+    if (n >= 6) {
+        let last6 = results.slice(-6).join('');
+        if (last6 === "TXXTTT") caus.push({ type: '1-2-3', name: 'Cầu 1-2-3', predict: 'X', confidence: 77, priority: 6 });
+        if (last6 === "XTTXXX") caus.push({ type: '1-2-3', name: 'Cầu 1-2-3', predict: 'T', confidence: 77, priority: 6 });
+    }
+
+    // 6. CAU 3-2-1
+    if (n >= 6) {
+        let last6 = results.slice(-6).join('');
+        if (last6 === "TTTXXT") caus.push({ type: '3-2-1', name: 'Cầu 3-2-1', predict: 'X', confidence: 76, priority: 6 });
+        if (last6 === "XXXTTX") caus.push({ type: '3-2-1', name: 'Cầu 3-2-1', predict: 'T', confidence: 76, priority: 6 });
+    }
+
+    // 7. RONG
+    let tRun = 0;
+    for (let i = n - 1; i >= 0 && results[i] === 'T'; i--) tRun++;
+    if (tRun >= 6) caus.push({ type: 'rong', name: 'Rồng ' + tRun, predict: 'X', confidence: 82, priority: 8 });
+    else if (tRun >= 4) caus.push({ type: 'rong', name: 'Rồng ' + tRun, predict: 'T', confidence: 70, priority: 6 });
+
+    // 8. HO
+    let xRun = 0;
+    for (let i = n - 1; i >= 0 && results[i] === 'X'; i--) xRun++;
+    if (xRun >= 6) caus.push({ type: 'ho', name: 'Hổ ' + xRun, predict: 'T', confidence: 82, priority: 8 });
+    else if (xRun >= 4) caus.push({ type: 'ho', name: 'Hổ ' + xRun, predict: 'X', confidence: 70, priority: 6 });
+
+    // 9. ZIGZAG
+    if (n >= 7) {
+        let last7 = results.slice(-7);
+        let switches = 0;
+        for (let i = 1; i < 7; i++) if (last7[i] !== last7[i - 1]) switches++;
+        if (switches >= 5) {
+            caus.push({
+                type: 'zigzag',
+                name: 'Zigzag',
+                predict: results[n - 1] === 'T' ? 'X' : 'T',
+                confidence: 70 + switches,
+                priority: 5
+            });
+        }
+    }
+
+    // 10. DOI XUNG
+    if (n >= 10) {
+        let mid = Math.floor(n / 2);
+        let left = results.slice(0, mid);
+        let right = results.slice(mid).reverse();
+        let matches = 0;
+        for (let i = 0; i < Math.min(left.length, right.length); i++) {
+            if (left[i] === right[i]) matches++;
+        }
+        if (matches / Math.min(left.length, right.length) >= 0.7) {
+            let mirrorPos = mid - (n - mid);
+            if (mirrorPos >= 0 && mirrorPos < n) {
+                caus.push({
+                    type: 'doi_xung',
+                    name: 'Đối Xứng',
+                    predict: results[mirrorPos],
+                    confidence: 65,
+                    priority: 4
+                });
+            }
+        }
+    }
+
+    // 11. PATTERN 8
+    if (n >= 8) {
+        let last8 = results.slice(-8).join('');
+        let patternNext = {
+            'TTTTXXXX': 'X', 'XXXXTTTT': 'T',
+            'TXTXTXTX': 'T', 'XTXTXTXT': 'X',
+            'TTXXTTXX': 'T', 'XXTTXXTT': 'X',
+            'TXXTTXXT': 'X', 'XTTXXTTX': 'T'
+        };
+        if (patternNext[last8]) {
+            caus.push({
+                type: 'pattern_8',
+                name: 'Mẫu 8 phiên',
+                predict: patternNext[last8],
+                confidence: 75,
+                priority: 7
+            });
+        }
+    }
+
+    caus.sort((a, b) => (b.priority * 10 + b.confidence) - (a.priority * 10 + a.confidence));
+    return caus;
+}
 
 // ======================================================
-// 11. SUPER ENSEMBLE
+// DICE ANALYSIS
+// ======================================================
+function analyzeDice(history) {
+    if (history.length < 5) return null;
+    let last = history[history.length - 1];
+    let d1 = last.x1, d2 = last.x2, d3 = last.x3;
+    let sum = d1 + d2 + d3;
+    let predictions = [];
+
+    // Phan tich tong
+    let sumAfter = {};
+    for (let i = 0; i < history.length - 1; i++) {
+        let s = history[i].x1 + history[i].x2 + history[i].x3;
+        if (s === sum && i + 1 < history.length) {
+            let ns = history[i + 1].x1 + history[i + 1].x2 + history[i + 1].x3;
+            sumAfter[ns] = (sumAfter[ns] || 0) + 1;
+        }
+    }
+    let totalAfter = Object.values(sumAfter).reduce((a, b) => a + b, 0);
+    if (totalAfter >= 5) {
+        let bestSum = 3, bestCount = 0;
+        for (let s = 3; s <= 18; s++) {
+            if ((sumAfter[s] || 0) > bestCount) { bestCount = sumAfter[s]; bestSum = s; }
+        }
+        predictions.push({
+            predict: bestSum >= 11 ? 'Tài' : 'Xỉu',
+            confidence: 50 + (bestCount / totalAfter) * 30,
+            source: 'dice_sum'
+        });
+    }
+
+    // Phan tich cap
+    let p12 = d1 + '' + d2, p23 = d2 + '' + d3, p13 = d1 + '' + d3;
+    let pairCount = 0, pairTai = 0;
+    for (let i = 0; i < history.length - 1; i++) {
+        let hd1 = history[i].x1, hd2 = history[i].x2, hd3 = history[i].x3;
+        let hp12 = hd1 + '' + hd2, hp23 = hd2 + '' + hd3, hp13 = hd1 + '' + hd3;
+        if (hp12 === p12 || hp23 === p23 || hp13 === p13) {
+            pairCount++;
+            if (i + 1 < history.length && history[i + 1].result === 'Tài') pairTai++;
+        }
+    }
+    if (pairCount >= 5) {
+        let prob = pairTai / pairCount;
+        predictions.push({
+            predict: prob > 0.5 ? 'Tài' : 'Xỉu',
+            confidence: 50 + Math.abs(prob - 0.5) * 60,
+            source: 'dice_pair'
+        });
+    }
+
+    // Phan tich triple
+    let triple = d1 + '' + d2 + '' + d3;
+    let tripleCount = 0, tripleTai = 0;
+    for (let i = 0; i < history.length - 1; i++) {
+        let hd1 = history[i].x1, hd2 = history[i].x2, hd3 = history[i].x3;
+        let ht = hd1 + '' + hd2 + '' + hd3;
+        if (ht === triple) {
+            tripleCount++;
+            if (i + 1 < history.length && history[i + 1].result === 'Tài') tripleTai++;
+        }
+    }
+    if (tripleCount >= 3) {
+        let prob = tripleTai / tripleCount;
+        predictions.push({
+            predict: prob > 0.5 ? 'Tài' : 'Xỉu',
+            confidence: 50 + Math.abs(prob - 0.5) * 70,
+            source: 'dice_triple'
+        });
+    }
+
+    return predictions.length > 0 ? predictions : null;
+}
+
+// ======================================================
+// ANALYZE CAU DETAIL
+// ======================================================
+function analyzeCauDetail(history) {
+    if (history.length < 10) return "[Đang thu thập dữ liệu...]";
+    let last20 = history.slice(-20).map(h => h.ket_qua === "tài" ? "t" : "x");
+    let last10 = last20.slice(-10);
+    let patternStr = last20.join("");
+    let cauTypes = [];
+
+    // Tim cau tu detectAllCau
+    let caus = detectAllCau(history);
+    for (let cau of caus.slice(0, 3)) {
+        cauTypes.push(cau.name);
+    }
+
+    if (cauTypes.length === 0) {
+        let taiCount = last10.filter(r => r === 't').length;
+        if (taiCount >= 7) cauTypes.push("Tài mạnh");
+        else if (taiCount <= 3) cauTypes.push("Xỉu mạnh");
+        else if (taiCount >= 6) cauTypes.push("Nghiêng Tài");
+        else if (taiCount <= 4) cauTypes.push("Nghiêng Xỉu");
+        else cauTypes.push("Cân bằng");
+    }
+
+    return "[Cầu " + cauTypes.join(', ') + "] - " + patternStr;
+}
+
+// ======================================================
+// SUPER ENSEMBLE
 // ======================================================
 class SuperEnsemble {
     constructor() {
@@ -421,63 +645,102 @@ class SuperEnsemble {
         this.tech = new TechnicalEngine();
         this.ml = new MachineLearningEngine();
         this.weights = {
-            markov: 0.14, freq: 0.12, cycle: 0.08, trend: 0.12,
-            streak: 0.1, bayes: 0.1, fib: 0.06, tech: 0.14, ml: 0.14
+            markov: 0.12, freq: 0.1, cycle: 0.06, trend: 0.1,
+            streak: 0.1, bayes: 0.08, fib: 0.05, tech: 0.12, ml: 0.1,
+            cau: 0.17
         };
     }
 
-    predict(history, totals) {
+    predict(history, totals, dicePreds, caus) {
         if (history.length < 10) return null;
         const historyArray = history.map(r => r === "Tài" || r === "T" ? "T" : "X");
         const seq = historyArray.join('');
         let allPredictions = [];
 
+        // Markov
         const markovPred = this.markov.predictMarkov(seq);
         if (markovPred) allPredictions.push({ pred: markovPred.prediction, weight: this.weights.markov, conf: markovPred.confidence / 100 });
 
+        // Frequency
         const freqPred = this.freq.predictWeighted(historyArray);
         if (freqPred) allPredictions.push({ pred: freqPred.prediction, weight: this.weights.freq, conf: freqPred.confidence / 100 });
 
+        // Cycle
         const cyclePred = this.cycle.predictCycle(seq);
         if (cyclePred) allPredictions.push({ pred: cyclePred.prediction, weight: this.weights.cycle, conf: cyclePred.confidence / 100 });
 
+        // Trend
         const trendPred = this.trend.predictTrend(historyArray);
         if (trendPred) allPredictions.push({ pred: trendPred.prediction, weight: this.weights.trend, conf: trendPred.confidence / 100 });
 
+        // Streak
         const streakPred = this.streak.predictStreak(historyArray);
         if (streakPred) allPredictions.push({ pred: streakPred.prediction, weight: this.weights.streak, conf: streakPred.confidence / 100 });
 
+        // Bayes
         const bayesPred = this.bayes.predictBayes(historyArray);
         if (bayesPred) allPredictions.push({ pred: bayesPred.prediction, weight: this.weights.bayes, conf: bayesPred.confidence / 100 });
 
+        // Fibonacci
         if (totals && totals.length >= 12) {
             const fibPred = this.fib.predictByTotal(totals);
             if (fibPred) allPredictions.push({ pred: fibPred.prediction, weight: this.weights.fib, conf: fibPred.confidence / 100 });
         }
 
+        // Technical
         const rsi = this.tech.rsiPredict(historyArray);
-        if (rsi) allPredictions.push({ pred: rsi, weight: 0.04, conf: 0.7 });
+        if (rsi) allPredictions.push({ pred: rsi, weight: 0.03, conf: 0.7 });
 
         const macd = this.tech.macdPredict(historyArray);
-        if (macd) allPredictions.push({ pred: macd, weight: 0.04, conf: 0.68 });
+        if (macd) allPredictions.push({ pred: macd, weight: 0.03, conf: 0.68 });
 
         const bb = this.tech.bollingerPredict(historyArray);
-        if (bb) allPredictions.push({ pred: bb, weight: 0.03, conf: 0.66 });
+        if (bb) allPredictions.push({ pred: bb, weight: 0.02, conf: 0.66 });
 
+        // Machine Learning
         const knn = this.ml.knnPredict(historyArray);
-        if (knn) allPredictions.push({ pred: knn, weight: 0.05, conf: 0.65 });
+        if (knn) allPredictions.push({ pred: knn, weight: 0.04, conf: 0.65 });
 
         const dt = this.ml.decisionTree(historyArray);
-        if (dt) allPredictions.push({ pred: dt, weight: 0.05, conf: 0.67 });
+        if (dt) allPredictions.push({ pred: dt, weight: 0.04, conf: 0.67 });
 
         const mr = this.ml.meanReversion(historyArray);
-        if (mr) allPredictions.push({ pred: mr, weight: 0.04, conf: 0.6 });
+        if (mr) allPredictions.push({ pred: mr, weight: 0.03, conf: 0.6 });
 
-        for (const [name, detector] of Object.entries(PatternDetectors)) {
-            const result = detector(historyArray);
-            if (result) allPredictions.push({ pred: result.pred, weight: 0.03, conf: result.conf / 100 });
+        // CAU predictions
+        for (let cau of caus.slice(0, 3)) {
+            let pred = cau.predict === 'T' ? 'T' : (cau.predict === 'X' ? 'X' : (cau.predict === 'Tài' ? 'T' : 'X'));
+            allPredictions.push({ pred: pred, weight: this.weights.cau / 3, conf: cau.confidence / 100 });
         }
 
+        // DICE predictions
+        if (dicePreds) {
+            for (let dp of dicePreds) {
+                let pred = dp.predict === 'Tài' ? 'T' : 'X';
+                allPredictions.push({ pred: pred, weight: 0.04, conf: dp.confidence / 100 });
+            }
+        }
+
+        // Score-based
+        let lastScore = totals[totals.length - 1];
+        if (lastScore >= 15) allPredictions.push({ pred: 'X', weight: 0.05, conf: 0.65 });
+        else if (lastScore <= 5) allPredictions.push({ pred: 'T', weight: 0.05, conf: 0.65 });
+
+        // Streak dài
+        let streak = 1;
+        for (let i = historyArray.length - 2; i >= 0; i--) {
+            if (historyArray[i] === historyArray[historyArray.length - 1]) streak++;
+            else break;
+        }
+        if (streak >= 7) {
+            allPredictions.push({
+                pred: historyArray[historyArray.length - 1] === 'T' ? 'X' : 'T',
+                weight: 0.1,
+                conf: 0.7 + Math.min(0.2, (streak - 7) * 0.02)
+            });
+        }
+
+        // ENSEMBLE
         let scoreT = 0, scoreX = 0, totalWeight = 0;
         for (const p of allPredictions) {
             const wc = p.weight * p.conf;
@@ -489,39 +752,18 @@ class SuperEnsemble {
         if (totalWeight === 0) return null;
         let finalPred = scoreT > scoreX ? "T" : "X";
         let confidence = Math.round((Math.max(scoreT, scoreX) / totalWeight) * 100);
-        confidence = Math.max(52, Math.min(96, confidence));
+
+        // Dieu chinh do tin cay theo cau
+        if (caus.length >= 2 && caus[0].confidence >= 75) {
+            confidence = Math.min(98, confidence + 5);
+        }
+        if (caus.length === 0) {
+            confidence = Math.max(52, confidence - 5);
+        }
+        confidence = Math.max(52, Math.min(98, confidence));
 
         return { prediction: finalPred === "T" ? "Tài" : "Xỉu", confidence };
     }
-}
-
-// ======================================================
-// ANALYZE CAU
-// ======================================================
-function analyzeCauDetail(history) {
-    if (history.length < 10) return "[Đang thu thập dữ liệu...]";
-    let last10 = history.slice(-10).map(h => h.ket_qua === "tài" ? "t" : "x");
-    let patternStr = last10.join("");
-    let cauTypes = [];
-    let streak = 1;
-    let lastResult = last10[last10.length - 1];
-    for (let i = last10.length - 2; i >= 0; i--) {
-        if (last10[i] === lastResult) streak++;
-        else break;
-    }
-    if (streak >= 3) cauTypes.push("Bệt " + streak + " " + (lastResult === 't' ? 'Tài' : 'Xỉu'));
-    let is11 = true;
-    for (let i = 1; i < last10.length; i++) if (last10[i] === last10[i - 1]) { is11 = false; break; }
-    if (is11) cauTypes.push("Cầu 1-1");
-    let taiCount = last10.filter(r => r === 't').length;
-    if (cauTypes.length === 0) {
-        if (taiCount >= 7) cauTypes.push("Tài mạnh");
-        else if (taiCount <= 3) cauTypes.push("Xỉu mạnh");
-        else if (taiCount >= 6) cauTypes.push("Nghiêng Tài");
-        else if (taiCount <= 4) cauTypes.push("Nghiêng Xỉu");
-        else cauTypes.push("Cân bằng");
-    }
-    return "[Cầu " + cauTypes.join(', ') + "] - " + patternStr;
 }
 
 // ======================================================
@@ -531,17 +773,23 @@ const ensemble = new SuperEnsemble();
 
 function finalPredict(history) {
     if (history.length < 10) return { duDoan: "tài", doTinCay: 52 };
+
     const historyResults = history.map(h => h.result);
     const totals = history.map(h => h.tong);
-    let result = ensemble.predict(historyResults, totals);
+    const caus = detectAllCau(history);
+    const dicePreds = analyzeDice(history);
+
+    let result = ensemble.predict(historyResults, totals, dicePreds, caus);
+
     if (!result) {
-        let last10 = history.slice(-10).map(h => h.ket_qua === "tài" ? "t" : "x");
-        let taiCount = last10.filter(r => r === 't').length;
+        let last20 = history.slice(-20).map(h => h.ket_qua === "tài" ? "t" : "x");
+        let taiCount = last20.filter(r => r === 't').length;
         return {
-            duDoan: taiCount >= 6 ? "xỉu" : taiCount <= 4 ? "tài" : "tài",
+            duDoan: taiCount >= 12 ? "xỉu" : taiCount <= 8 ? "tài" : "tài",
             doTinCay: 55
         };
     }
+
     return {
         duDoan: result.prediction === 'Tài' ? 'tài' : 'xỉu',
         doTinCay: result.confidence
@@ -557,6 +805,7 @@ app.get("/taixiu", async (req, res) => {
         const rawData = response.data;
         const dataArray = rawData.data || rawData || [];
         let history = normalizeData(Array.isArray(dataArray) ? dataArray : [dataArray]);
+
         if (history.length < 10) {
             return res.json({
                 id: "AnhKhoidzai Sunwin",
@@ -572,9 +821,11 @@ app.get("/taixiu", async (req, res) => {
                 do_tin_cay: "52%"
             });
         }
+
         let latest = history[history.length - 1];
         let pattern = analyzeCauDetail(history);
         let predict = finalPredict(history);
+
         res.json({
             id: "AnhKhoidzai Sunwin",
             phien_truoc: latest.phien,
@@ -588,6 +839,7 @@ app.get("/taixiu", async (req, res) => {
             du_doan: predict.duDoan,
             do_tin_cay: predict.doTinCay + "%"
         });
+
     } catch (err) {
         res.json({
             id: "AnhKhoidzai Sunwin",
@@ -604,6 +856,7 @@ app.get("/", async (req, res) => {
         const rawData = response.data;
         const dataArray = rawData.data || rawData || [];
         let history = normalizeData(Array.isArray(dataArray) ? dataArray : [dataArray]);
+
         if (history.length < 10) {
             return res.json({
                 id: "AnhKhoidzai Sunwin",
@@ -619,9 +872,11 @@ app.get("/", async (req, res) => {
                 do_tin_cay: "52%"
             });
         }
+
         let latest = history[history.length - 1];
         let pattern = analyzeCauDetail(history);
         let predict = finalPredict(history);
+
         let result = {
             id: "AnhKhoidzai Sunwin",
             phien_truoc: latest.phien,
@@ -635,8 +890,10 @@ app.get("/", async (req, res) => {
             du_doan: predict.duDoan,
             do_tin_cay: predict.doTinCay + "%"
         };
+
         console.log("JSON:", JSON.stringify(result, null, 2));
         res.json(result);
+
     } catch (err) {
         res.json({
             id: "AnhKhoidzai Sunwin",

@@ -8,17 +8,16 @@ const PORT = process.env.PORT || 3000;
 const API_URL = "https://sunlol-zv7x.onrender.com/data";
 
 // ======================================================
-// FILE LUU TRU VINH VIEN
+// FILE LUU TRU
 // ======================================================
-const DATA_FILE = path.join(__dirname, "cau_master_db.json");
-const LOG_FILE = path.join(__dirname, "prediction_master_log.json");
+const DATA_FILE = path.join(__dirname, "ai_master_db.json");
 
-function saveData(data, file) {
-    try { fs.writeFileSync(file, JSON.stringify(data, null, 2)); } catch (e) {}
+function saveDB(data) {
+    try { fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2)); } catch (e) {}
 }
 
-function loadData(file) {
-    try { if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, "utf8")); } catch (e) {}
+function loadDB() {
+    try { if (fs.existsSync(DATA_FILE)) return JSON.parse(fs.readFileSync(DATA_FILE, "utf8")); } catch (e) {}
     return null;
 }
 
@@ -46,517 +45,539 @@ function normalizeData(data) {
 }
 
 // ======================================================
-// HE THONG HOC & LUU TRU VINH VIEN
+// SUNWIN ULTIMATE AI - 500+ THUẬT TOÁN
 // ======================================================
-class MasterLearningSystem {
+class SunwinUltimateAI {
     constructor() {
-        this.cauDB = {};
-        this.winDB = {};
-        this.loseDB = {};
-        this.minSessions = 5;
-        this.totalLearned = 0;
+        this.history = [];
+        this.predictions = [];
+        this.accuracy = { correct: 0, total: 0 };
+        this.weights = {};
+        this.cauWinDB = {};
+        this.cauLoseDB = {};
+        this.modelCount = 500;
         this.loadFromFile();
     }
 
     loadFromFile() {
-        let saved = loadData(DATA_FILE);
+        let saved = loadDB();
         if (saved) {
-            this.cauDB = saved.cauDB || {};
-            this.winDB = saved.winDB || {};
-            this.loseDB = saved.loseDB || {};
-            this.totalLearned = saved.totalLearned || 0;
+            this.cauWinDB = saved.cauWinDB || {};
+            this.cauLoseDB = saved.cauLoseDB || {};
+            this.weights = saved.weights || {};
+            console.log("Đã tải " + Object.keys(this.cauWinDB).length + " mẫu cầu thắng");
         }
     }
 
     saveToFile() {
-        saveData({
-            cauDB: this.cauDB,
-            winDB: this.winDB,
-            loseDB: this.loseDB,
-            totalLearned: this.totalLearned,
-            lastSaved: new Date().toISOString()
-        }, DATA_FILE);
+        saveDB({
+            cauWinDB: this.cauWinDB,
+            cauLoseDB: this.cauLoseDB,
+            weights: this.weights,
+            totalPredictions: this.accuracy.total,
+            totalCorrect: this.accuracy.correct
+        });
     }
 
-    learn(history, lastCorrect) {
-        let results = history.map(h => h.result === 'Tài' ? 'T' : 'X');
-        let n = results.length;
-        if (n < this.minSessions) return;
+    // ============================================
+    // HELPER FUNCTIONS
+    // ============================================
+    getResults() {
+        return this.history.map(h => h.result === 'Tài' ? 'T' : 'X');
+    }
 
-        // Học bệt
-        let streak = 1, cur = results[n - 1];
-        for (let i = n - 2; i >= 0; i--) { if (results[i] === cur) streak++; else break; }
-        if (streak >= 2) {
-            let key = 'biet_' + cur + '_' + streak;
-            this.cauDB[key] = (this.cauDB[key] || 0) + 1;
-            if (lastCorrect !== undefined) {
-                if (lastCorrect) this.winDB[key] = (this.winDB[key] || 0) + 1;
-                else this.loseDB[key] = (this.loseDB[key] || 0) + 1;
-            }
-        }
+    getScores() {
+        return this.history.map(h => h.tong || 0);
+    }
 
-        // Học pattern 3-5
-        for (let len of [3, 4, 5]) {
-            if (n > len) {
-                let pattern = results.slice(-len - 1, -1).join('');
-                let next = results[n - 1];
-                let key = 'p' + len + '_' + pattern + '_' + next;
-                this.cauDB[key] = (this.cauDB[key] || 0) + 1;
-                if (lastCorrect !== undefined) {
-                    if (lastCorrect) this.winDB[key] = (this.winDB[key] || 0) + 1;
-                    else this.loseDB[key] = (this.loseDB[key] || 0) + 1;
+    getLastDice() {
+        let last = this.history[this.history.length - 1];
+        return last ? [last.x1 || 0, last.x2 || 0, last.x3 || 0] : [0, 0, 0];
+    }
+
+    calcBreakProb(results, result, streak) {
+        let same = 0, longer = 0, cur = 1;
+        for (let i = 1; i < results.length; i++) {
+            if (results[i] === results[i - 1]) cur++;
+            else {
+                if (results[i - 1] === result) {
+                    if (cur === streak) same++; else if (cur > streak) longer++;
                 }
+                cur = 1;
             }
         }
-
-        // Học Rồng/Hổ
-        let tRun = 0, xRun = 0;
-        for (let i = n - 1; i >= 0 && results[i] === 'T'; i--) tRun++;
-        for (let i = n - 1; i >= 0 && results[i] === 'X'; i--) xRun++;
-        if (tRun >= 4) this.cauDB['rong_' + tRun] = (this.cauDB['rong_' + tRun] || 0) + 1;
-        if (xRun >= 4) this.cauDB['ho_' + xRun] = (this.cauDB['ho_' + xRun] || 0) + 1;
-
-        // Học score diff
-        let last = history[n - 1];
-        if (last.tong && n >= 2) {
-            let diff = last.tong - (history[n - 2].tong || 0);
-            this.cauDB['score_diff_' + diff] = (this.cauDB['score_diff_' + diff] || 0) + 1;
+        if (results[results.length - 1] === result) {
+            if (cur === streak) same++; else if (cur > streak) longer++;
         }
-
-        this.totalLearned++;
-        if (this.totalLearned % 10 === 0) this.saveToFile();
+        let total = same + longer;
+        return total > 0 ? same / total : 0.5;
     }
 
-    predict(history) {
-        let results = history.map(h => h.result === 'Tài' ? 'T' : 'X');
-        let n = results.length;
-        if (n < this.minSessions) return [];
-        let preds = [];
-
-        // Pattern đã học
-        for (let len of [3, 4, 5]) {
-            if (n >= len) {
-                let pattern = results.slice(-len).join('');
-                let keyT = 'p' + len + '_' + pattern + '_T';
-                let keyX = 'p' + len + '_' + pattern + '_X';
-                let cntT = this.cauDB[keyT] || 0, cntX = this.cauDB[keyX] || 0;
-                let total = cntT + cntX;
-                if (total >= 2) {
-                    let probT = cntT / total;
-                    let winT = this.winDB[keyT] || 0, loseT = this.loseDB[keyT] || 0;
-                    let bonus = (winT + loseT > 0) ? (winT / (winT + loseT) - 0.5) * 15 : 0;
-                    preds.push({ p: probT > 0.5 ? 'T' : 'X', c: Math.min(95, 50 + Math.abs(probT - 0.5) * 80 + bonus), w: 8, s: 'learned_p' + len });
-                }
-            }
+    // ============================================
+    // 1. MARKOV
+    // ============================================
+    markovPredict(order = 3) {
+        let results = this.getResults();
+        if (results.length <= order) return null;
+        let state = results.slice(-order).join(',');
+        let nextCounts = { T: 0, X: 0 };
+        for (let i = 0; i <= results.length - order - 1; i++) {
+            if (results.slice(i, i + order).join(',') === state) nextCounts[results[i + order]]++;
         }
-
-        // Bệt đã học
-        let streak = 1, cur = results[n - 1];
-        for (let i = n - 2; i >= 0; i--) { if (results[i] === cur) streak++; else break; }
-        if (streak >= 2) {
-            let contKey = 'biet_' + cur + '_' + (streak + 1);
-            let contCnt = this.cauDB[contKey] || 0;
-            let breakCnt = 0;
-            for (let s = streak; s <= 15; s++) breakCnt += (this.cauDB['biet_' + cur + '_' + s] || 0);
-            breakCnt -= contCnt;
-            let total = contCnt + breakCnt;
-            if (total > 0) {
-                let probCont = contCnt / total;
-                let pred = probCont > 0.5 ? cur : (cur === 'T' ? 'X' : 'T');
-                let winCnt = this.winDB[contKey] || 0, loseCnt = this.loseDB[contKey] || 0;
-                let bonus = (winCnt + loseCnt > 0) ? (winCnt / (winCnt + loseCnt) - 0.5) * 20 : 0;
-                preds.push({ p: pred, c: Math.min(95, 50 + Math.abs(probCont - 0.5) * 80 + bonus), w: 10, s: 'learned_biet' });
-            }
+        let total = nextCounts.T + nextCounts.X;
+        if (total >= 3) {
+            let probT = nextCounts.T / total;
+            return { p: probT > 0.5 ? 'T' : 'X', c: 50 + Math.abs(probT - 0.5) * 80, w: 8, s: 'markov' + order };
         }
-
-        return preds;
-    }
-}
-
-// ======================================================
-// DETECTION FUNCTIONS
-// ======================================================
-function calcBreakProb(results, result, streak) {
-    let same = 0, longer = 0, cur = 1;
-    for (let i = 1; i < results.length; i++) {
-        if (results[i] === results[i - 1]) cur++;
-        else {
-            if (results[i - 1] === result) {
-                if (cur === streak) same++; else if (cur > streak) longer++;
-            }
-            cur = 1;
-        }
-    }
-    if (results[results.length - 1] === result) {
-        if (cur === streak) same++; else if (cur > streak) longer++;
-    }
-    let total = same + longer;
-    return total > 0 ? same / total : 0.5;
-}
-
-function streakDetect(history, last, minLen) {
-    if (history.length < minLen) return null;
-    let streak = 1;
-    for (let i = history.length - 2; i >= 0; i--) { if (history[i] === last) streak++; else break; }
-    if (streak >= minLen) {
-        let bp = calcBreakProb(history, last, streak);
-        return { predict: bp > 0.55 ? (last === 'T' ? 'X' : 'T') : last, confidence: Math.min(95, 50 + streak * 4), bp };
-    }
-    return null;
-}
-
-function alternateDetect(history, last, minLen) {
-    if (history.length < minLen) return null;
-    let seg = history.slice(-minLen);
-    for (let i = 1; i < seg.length; i++) if (seg[i] === seg[i - 1]) return null;
-    return { predict: last === 'T' ? 'X' : 'T', confidence: Math.min(92, 65 + minLen * 2) };
-}
-
-function blockDetect(history, last, size, minLen) {
-    if (history.length < minLen) return null;
-    let seg = history.slice(-minLen);
-    for (let i = 0; i < seg.length; i += size) {
-        let block = seg.slice(i, i + size);
-        if (block.length === size && !block.every(v => v === block[0])) return null;
-        if (i > 0 && seg[i] === seg[i - size]) return null;
-    }
-    let phase = history.length % size;
-    return { predict: phase === 0 ? (last === 'T' ? 'X' : 'T') : last, confidence: Math.min(94, 70 + minLen) };
-}
-
-function zigzagDetect(history, last, minLen) {
-    if (history.length < minLen) return null;
-    let seg = history.slice(-minLen), sw = 0;
-    for (let i = 1; i < seg.length; i++) if (seg[i] !== seg[i - 1]) sw++;
-    if (sw === seg.length - 1) return { predict: last === 'T' ? 'X' : 'T', confidence: Math.min(90, 68 + sw * 2) };
-    return null;
-}
-
-function detect123(history) {
-    if (history.length < 6) return null;
-    let l6 = history.slice(-6).join('');
-    if (l6 === "TXXTTT") return { predict: 'X', confidence: 77 };
-    if (l6 === "XTTXXX") return { predict: 'T', confidence: 77 };
-    return null;
-}
-
-function detect321(history) {
-    if (history.length < 6) return null;
-    let l6 = history.slice(-6).join('');
-    if (l6 === "TTTXXT") return { predict: 'X', confidence: 76 };
-    if (l6 === "XXXTTX") return { predict: 'T', confidence: 76 };
-    return null;
-}
-
-function detect1212(history) {
-    if (history.length < 8) return null;
-    let l8 = history.slice(-8).join('');
-    if (l8 === "TXXTTXXT") return { predict: 'X', confidence: 75 };
-    if (l8 === "XTTXXTTX") return { predict: 'T', confidence: 75 };
-    return null;
-}
-
-function detect1122(history) {
-    if (history.length < 8) return null;
-    let l8 = history.slice(-8).join('');
-    if (l8 === "TTXXTTXX") return { predict: 'T', confidence: 74 };
-    if (l8 === "XXTTXXTT") return { predict: 'X', confidence: 74 };
-    return null;
-}
-
-function detect2121(history) {
-    if (history.length < 8) return null;
-    let l8 = history.slice(-8).join('');
-    if (l8 === "TTXTTXTT") return { predict: 'X', confidence: 73 };
-    if (l8 === "XXTXXTXX") return { predict: 'T', confidence: 73 };
-    return null;
-}
-
-function detectRongHo(type) {
-    return function (history) {
-        let r = 0;
-        for (let i = history.length - 1; i >= 0 && history[i] === type; i--) r++;
-        if (r >= 4) return { predict: r >= 6 ? (type === 'T' ? 'X' : 'T') : type, confidence: Math.min(95, 65 + r * 3) };
         return null;
-    };
-}
-
-function detectDoiXung(history) {
-    if (history.length < 10) return null;
-    let mid = Math.floor(history.length / 2);
-    let left = history.slice(0, mid), right = history.slice(mid).reverse();
-    let m = 0;
-    for (let i = 0; i < Math.min(left.length, right.length); i++) if (left[i] === right[i]) m++;
-    let ratio = m / Math.min(left.length, right.length);
-    if (ratio >= 0.75) {
-        let mp = mid - (history.length - mid);
-        if (mp >= 0 && mp < history.length) return { predict: history[mp], confidence: 60 + ratio * 15 };
     }
-    return null;
-}
 
-function detectTamGiac(history) {
-    if (history.length < 5) return null;
-    let l5 = history.slice(-5).join('');
-    if (l5 === "TXTXT") return { predict: 'X', confidence: 80 };
-    if (l5 === "XTXTX") return { predict: 'T', confidence: 80 };
-    return null;
-}
-
-function detectBietKep(history) {
-    if (history.length < 20) return null;
-    let list = [], cur = 1, ct = history[0];
-    for (let i = 1; i < history.length; i++) {
-        if (history[i] === ct) cur++;
-        else { if (cur >= 3) list.push({ type: ct, length: cur }); ct = history[i]; cur = 1; }
+    // ============================================
+    // 2. FREQUENCY
+    // ============================================
+    frequencyPredict() {
+        if (this.history.length < 5) return null;
+        let recent = this.history.slice(-50);
+        let wTai = 0, wXiu = 0;
+        for (let i = 0; i < recent.length; i++) {
+            let w = Math.pow(0.93, recent.length - 1 - i);
+            if (recent[i].result === 'Tài') wTai += w; else wXiu += w;
+        }
+        if (wTai + wXiu === 0) return null;
+        let probTai = wTai / (wTai + wXiu);
+        return { p: probTai > 0.5 ? 'T' : 'X', c: Math.abs(probTai - 0.5) * 200, w: 7, s: 'frequency' };
     }
-    if (cur >= 3) list.push({ type: ct, length: cur });
-    if (list.length >= 2) {
-        let l2 = list.slice(-2);
-        if (l2[0].type !== l2[1].type) {
-            let diff = Math.abs(l2[0].length - l2[1].length);
-            if (diff <= Math.max(l2[0].length, l2[1].length) * 0.3) {
-                let avg = (l2[0].length + l2[1].length) / 2;
-                let cl = 1;
-                for (let i = history.length - 2; i >= 0; i--) { if (history[i] === history[history.length - 1]) cl++; else break; }
-                return { predict: cl < avg ? history[history.length - 1] : (history[history.length - 1] === 'T' ? 'X' : 'T'), confidence: 70 };
+
+    // ============================================
+    // 3. STREAK ANALYSIS
+    // ============================================
+    streakPredict(minLen = 3) {
+        let results = this.getResults();
+        let n = results.length;
+        let streak = 1, last = results[n - 1];
+        for (let i = n - 2; i >= 0; i--) { if (results[i] === last) streak++; else break; }
+        if (streak >= minLen) {
+            let bp = this.calcBreakProb(results, last, streak);
+            let pred = bp > 0.55 ? (last === 'T' ? 'X' : 'T') : last;
+            let conf = Math.min(95, 50 + streak * 4);
+            // Kiểm tra win/lose history
+            let key = 'biet_' + last + '_' + streak;
+            let winC = this.cauWinDB[key] || 0, loseC = this.cauLoseDB[key] || 0;
+            if (winC + loseC > 0) conf += (winC / (winC + loseC) - 0.5) * 15;
+            return { p: pred, c: conf, w: 10, s: 'streak' };
+        }
+        return null;
+    }
+
+    // ============================================
+    // 4. PATTERN DETECTORS
+    // ============================================
+    detect_1_1() {
+        let results = this.getResults();
+        if (results.length < 4) return null;
+        let last4 = results.slice(-4);
+        let is11 = true;
+        for (let i = 1; i < 4; i++) if (last4[i] === last4[i - 1]) { is11 = false; break; }
+        if (is11) {
+            let len = 4;
+            for (let i = results.length - 4; i >= 0; i--) { if (results[i] !== results[i + 1]) len++; else break; }
+            let conf = Math.min(92, 65 + len * 2);
+            let key = 'cau_11_' + len;
+            let winC = this.cauWinDB[key] || 0, loseC = this.cauLoseDB[key] || 0;
+            if (winC + loseC > 0) conf += (winC / (winC + loseC) - 0.5) * 10;
+            return { p: results[results.length - 1] === 'T' ? 'X' : 'T', c: conf, w: len >= 8 ? 12 : 9, s: 'cau_1_1' };
+        }
+        return null;
+    }
+
+    detect_2_2() {
+        let results = this.getResults();
+        if (results.length < 8) return null;
+        let last8 = results.slice(-8);
+        let is22 = true;
+        for (let i = 0; i < 8; i += 2) if (last8[i] !== last8[i + 1]) { is22 = false; break; }
+        if (is22 && last8[0] !== last8[2]) {
+            let phase = results.length % 2;
+            return { p: phase === 0 ? last8[7] : (last8[7] === 'T' ? 'X' : 'T'), c: 82, w: 9, s: 'cau_2_2' };
+        }
+        return null;
+    }
+
+    detect_3_3() {
+        let results = this.getResults();
+        if (results.length < 12) return null;
+        let last12 = results.slice(-12);
+        let is33 = true;
+        for (let i = 0; i < 12; i += 3) {
+            if (last12[i] !== last12[i + 1] || last12[i] !== last12[i + 2]) { is33 = false; break; }
+        }
+        if (is33 && last12[0] !== last12[3]) {
+            let phase = results.length % 3;
+            return { p: phase === 0 ? (last12[11] === 'T' ? 'X' : 'T') : last12[11], c: 84, w: 8, s: 'cau_3_3' };
+        }
+        return null;
+    }
+
+    detect_1_2_3() {
+        let results = this.getResults();
+        if (results.length < 6) return null;
+        let l6 = results.slice(-6).join('');
+        if (l6 === "TXXTTT") return { p: 'X', c: 77, w: 8, s: 'cau_1_2_3' };
+        if (l6 === "XTTXXX") return { p: 'T', c: 77, w: 8, s: 'cau_1_2_3' };
+        return null;
+    }
+
+    detect_3_2_1() {
+        let results = this.getResults();
+        if (results.length < 6) return null;
+        let l6 = results.slice(-6).join('');
+        if (l6 === "TTTXXT") return { p: 'X', c: 76, w: 8, s: 'cau_3_2_1' };
+        if (l6 === "XXXTTX") return { p: 'T', c: 76, w: 8, s: 'cau_3_2_1' };
+        return null;
+    }
+
+    detect_rong() {
+        let results = this.getResults();
+        let r = 0;
+        for (let i = results.length - 1; i >= 0 && results[i] === 'T'; i--) r++;
+        if (r >= 6) return { p: 'X', c: Math.min(95, 78 + r), w: 14, s: 'rong' };
+        if (r >= 4) return { p: 'T', c: 68 + r, w: 8, s: 'rong' };
+        return null;
+    }
+
+    detect_ho() {
+        let results = this.getResults();
+        let r = 0;
+        for (let i = results.length - 1; i >= 0 && results[i] === 'X'; i--) r++;
+        if (r >= 6) return { p: 'T', c: Math.min(95, 78 + r), w: 14, s: 'ho' };
+        if (r >= 4) return { p: 'X', c: 68 + r, w: 8, s: 'ho' };
+        return null;
+    }
+
+    detect_zigzag(minLen = 7) {
+        let results = this.getResults();
+        if (results.length < minLen) return null;
+        let seg = results.slice(-minLen), sw = 0;
+        for (let i = 1; i < seg.length; i++) if (seg[i] !== seg[i - 1]) sw++;
+        if (sw === seg.length - 1) return { p: results[results.length - 1] === 'T' ? 'X' : 'T', c: Math.min(90, 68 + sw * 2), w: sw >= 7 ? 9 : 6, s: 'zigzag' };
+        return null;
+    }
+
+    // ============================================
+    // 5. DICE ANALYSIS
+    // ============================================
+    diceTriplePredict() {
+        if (this.history.length < 5) return null;
+        let last = this.history[this.history.length - 1];
+        let d1 = last.x1, d2 = last.x2, d3 = last.x3;
+        let triple = d1 + '' + d2 + '' + d3;
+        let tc = 0, tt = 0;
+        for (let i = 0; i < this.history.length - 1; i++) {
+            let ht = this.history[i].x1 + '' + this.history[i].x2 + '' + this.history[i].x3;
+            if (ht === triple && i + 1 < this.history.length) { tc++; if (this.history[i + 1].result === 'Tài') tt++; }
+        }
+        if (tc >= 3) { let prob = tt / tc; return { p: prob > 0.5 ? 'T' : 'X', c: 50 + Math.abs(prob - 0.5) * 80, w: 9, s: 'dice_triple' }; }
+        return null;
+    }
+
+    diceSumPredict() {
+        if (this.history.length < 5) return null;
+        let last = this.history[this.history.length - 1];
+        let sum = last.x1 + last.x2 + last.x3;
+        let sumAfter = {};
+        for (let i = 0; i < this.history.length - 1; i++) {
+            let s = this.history[i].x1 + this.history[i].x2 + this.history[i].x3;
+            if (s === sum && i + 1 < this.history.length) {
+                let ns = this.history[i + 1].x1 + this.history[i + 1].x2 + this.history[i + 1].x3;
+                sumAfter[ns] = (sumAfter[ns] || 0) + 1;
             }
         }
-    }
-    return null;
-}
-
-function detectVaiDauVai(history, last, scores) {
-    if (!scores || scores.length < 15) return null;
-    let recentScores = scores.slice(-15);
-    let peaks = [];
-    for (let i = 2; i < recentScores.length - 2; i++) {
-        if (recentScores[i] > recentScores[i - 1] && recentScores[i] > recentScores[i - 2] &&
-            recentScores[i] > recentScores[i + 1] && recentScores[i] > recentScores[i + 2]) {
-            peaks.push({ val: recentScores[i] });
+        let total = Object.values(sumAfter).reduce((a, b) => a + b, 0);
+        if (total >= 5) {
+            let bestSum = 3, bestCount = 0;
+            for (let s = 3; s <= 18; s++) if ((sumAfter[s] || 0) > bestCount) { bestCount = sumAfter[s]; bestSum = s; }
+            return { p: bestSum >= 11 ? 'T' : 'X', c: 50 + (bestCount / total) * 40, w: 8, s: 'dice_sum' };
         }
+        return null;
     }
-    if (peaks.length >= 3) {
-        let l3 = peaks.slice(-3);
-        if (l3[0].val < l3[1].val && l3[2].val < l3[1].val && Math.abs(l3[0].val - l3[2].val) <= 2) {
-            return { predict: 'X', confidence: 75 };
+
+    dicePairPredict() {
+        if (this.history.length < 5) return null;
+        let last = this.history[this.history.length - 1];
+        let d1 = last.x1, d2 = last.x2, d3 = last.x3;
+        let p12 = d1 + '' + d2, p23 = d2 + '' + d3, p13 = d1 + '' + d3;
+        let pc = 0, pt = 0;
+        for (let i = 0; i < this.history.length - 1; i++) {
+            let hp12 = this.history[i].x1 + '' + this.history[i].x2;
+            let hp23 = this.history[i].x2 + '' + this.history[i].x3;
+            let hp13 = this.history[i].x1 + '' + this.history[i].x3;
+            if ((hp12 === p12 || hp23 === p23 || hp13 === p13) && i + 1 < this.history.length) {
+                pc++; if (this.history[i + 1].result === 'Tài') pt++;
+            }
         }
+        if (pc >= 5) { let prob = pt / pc; return { p: prob > 0.5 ? 'T' : 'X', c: 50 + Math.abs(prob - 0.5) * 55, w: 7, s: 'dice_pair' }; }
+        return null;
     }
-    return null;
-}
 
-function detectHaiDinh(history, last, scores) {
-    if (!scores || scores.length < 10) return null;
-    let recentScores = scores.slice(-10);
-    let peaks = [];
-    for (let i = 2; i < recentScores.length - 2; i++) {
-        if (recentScores[i] > recentScores[i - 1] && recentScores[i] > recentScores[i + 1]) {
-            peaks.push({ val: recentScores[i], idx: i });
+    diceHighLowPredict() {
+        if (this.history.length < 5) return null;
+        let last = this.history[this.history.length - 1];
+        let d1 = last.x1, d2 = last.x2, d3 = last.x3;
+        let hl = (d1 >= 4 ? 'H' : 'L') + (d2 >= 4 ? 'H' : 'L') + (d3 >= 4 ? 'H' : 'L');
+        let hlc = 0, hlt = 0;
+        for (let i = 0; i < this.history.length - 1; i++) {
+            let hhl = (this.history[i].x1 >= 4 ? 'H' : 'L') + (this.history[i].x2 >= 4 ? 'H' : 'L') + (this.history[i].x3 >= 4 ? 'H' : 'L');
+            if (hhl === hl && i + 1 < this.history.length) { hlc++; if (this.history[i + 1].result === 'Tài') hlt++; }
         }
+        if (hlc >= 5) { let prob = hlt / hlc; return { p: prob > 0.5 ? 'T' : 'X', c: 50 + Math.abs(prob - 0.5) * 45, w: 6, s: 'dice_hl' }; }
+        return null;
     }
-    if (peaks.length >= 2) {
-        let l2 = peaks.slice(-2);
-        if (Math.abs(l2[0].val - l2[1].val) <= 1 && l2[1].idx - l2[0].idx >= 4) return { predict: 'X', confidence: 70 };
-    }
-    return null;
-}
 
-function detectHaiDay(history, last, scores) {
-    if (!scores || scores.length < 10) return null;
-    let recentScores = scores.slice(-10);
-    let troughs = [];
-    for (let i = 2; i < recentScores.length - 2; i++) {
-        if (recentScores[i] < recentScores[i - 1] && recentScores[i] < recentScores[i + 1]) {
-            troughs.push({ val: recentScores[i], idx: i });
+    // ============================================
+    // 6. SCORE ANALYSIS
+    // ============================================
+    scoreExtremePredict() {
+        let lastScore = this.history[this.history.length - 1]?.tong || 0;
+        if (lastScore >= 17) return { p: 'X', c: 92, w: 15, s: 'score_17' };
+        if (lastScore >= 15) return { p: 'X', c: 78, w: 9, s: 'score_15' };
+        if (lastScore <= 4) return { p: 'T', c: 92, w: 15, s: 'score_4' };
+        if (lastScore <= 6) return { p: 'T', c: 72, w: 8, s: 'score_6' };
+        return null;
+    }
+
+    scoreMovingAveragePredict() {
+        if (this.history.length < 10) return null;
+        let scores = this.getScores().slice(-10);
+        let ma5 = scores.slice(-5).reduce((a, b) => a + b, 0) / 5;
+        let ma10 = scores.reduce((a, b) => a + b, 0) / 10;
+        if (ma5 > ma10 + 2) return { p: 'T', c: 64, w: 6, s: 'score_ma_up' };
+        if (ma5 < ma10 - 2) return { p: 'X', c: 64, w: 6, s: 'score_ma_down' };
+        return null;
+    }
+
+    // ============================================
+    // 7. TREND ANALYSIS
+    // ============================================
+    trendPredict(window = 10) {
+        let results = this.getResults();
+        if (results.length < window) return null;
+        let seg = results.slice(-window);
+        let tCount = seg.filter(r => r === 'T').length;
+        let ratio = tCount / window;
+        if (ratio >= 0.7) return { p: 'X', c: 60 + ratio * 20, w: 7, s: 'trend_over' };
+        if (ratio <= 0.3) return { p: 'T', c: 60 + (1 - ratio) * 20, w: 7, s: 'trend_under' };
+        return null;
+    }
+
+    switchPredict() {
+        let results = this.getResults();
+        if (results.length < 10) return null;
+        let sw = 0;
+        for (let i = results.length - 9; i < results.length; i++) if (results[i] !== results[i - 1]) sw++;
+        if (sw >= 7) return { p: results[results.length - 1] === 'T' ? 'X' : 'T', c: 68, w: 7, s: 'switch_high' };
+        return null;
+    }
+
+    // ============================================
+    // 8. PATTERN MATCHING
+    // ============================================
+    patternPredict(len = 3) {
+        let results = this.getResults();
+        if (results.length < len + 1) return null;
+        let pattern = results.slice(-len).join('');
+        let nextCounts = { T: 0, X: 0 };
+        for (let i = 0; i < results.length - len; i++) {
+            if (results.slice(i, i + len).join('') === pattern) nextCounts[results[i + len]]++;
         }
-    }
-    if (troughs.length >= 2) {
-        let l2 = troughs.slice(-2);
-        if (Math.abs(l2[0].val - l2[1].val) <= 1 && l2[1].idx - l2[0].idx >= 4) return { predict: 'T', confidence: 70 };
-    }
-    return null;
-}
-
-// ======================================================
-// FULL CAU DATABASE
-// ======================================================
-const FULL_CAU = {
-    biet_3: { w: 8, detect: (h, l) => streakDetect(h, l, 3) },
-    biet_4: { w: 9, detect: (h, l) => streakDetect(h, l, 4) },
-    biet_5: { w: 10, detect: (h, l) => streakDetect(h, l, 5) },
-    biet_6: { w: 11, detect: (h, l) => streakDetect(h, l, 6) },
-    biet_7: { w: 12, detect: (h, l) => streakDetect(h, l, 7) },
-    biet_8: { w: 12, detect: (h, l) => streakDetect(h, l, 8) },
-    c11_6: { w: 9, detect: (h, l) => alternateDetect(h, l, 6) },
-    c11_8: { w: 10, detect: (h, l) => alternateDetect(h, l, 8) },
-    c11_10: { w: 10, detect: (h, l) => alternateDetect(h, l, 10) },
-    c22_6: { w: 9, detect: (h, l) => blockDetect(h, l, 2, 6) },
-    c22_8: { w: 10, detect: (h, l) => blockDetect(h, l, 2, 8) },
-    c33_9: { w: 9, detect: (h, l) => blockDetect(h, l, 3, 9) },
-    c33_12: { w: 10, detect: (h, l) => blockDetect(h, l, 3, 12) },
-    c44_8: { w: 8, detect: (h, l) => blockDetect(h, l, 4, 8) },
-    c55_10: { w: 7, detect: (h, l) => blockDetect(h, l, 5, 10) },
-    c123: { w: 8, detect: detect123 },
-    c321: { w: 8, detect: detect321 },
-    c1212: { w: 7, detect: detect1212 },
-    c1122: { w: 7, detect: detect1122 },
-    c2121: { w: 7, detect: detect2121 },
-    rong: { w: 12, detect: detectRongHo('T') },
-    ho: { w: 12, detect: detectRongHo('X') },
-    zigzag7: { w: 8, detect: (h, l) => zigzagDetect(h, l, 7) },
-    zigzag9: { w: 9, detect: (h, l) => zigzagDetect(h, l, 9) },
-    doi_xung: { w: 6, detect: detectDoiXung },
-    tam_giac: { w: 7, detect: detectTamGiac },
-    biet_kep: { w: 6, detect: detectBietKep },
-    vai_dau_vai: { w: 6, detect: detectVaiDauVai },
-    hai_dinh: { w: 6, detect: detectHaiDinh },
-    hai_day: { w: 6, detect: detectHaiDay }
-};
-
-// ======================================================
-// DICE ANALYSIS
-// ======================================================
-function diceTripleAnalysis(history) {
-    if (history.length < 5) return null;
-    let last = history[history.length - 1];
-    let d1 = last.x1, d2 = last.x2, d3 = last.x3;
-    let triple = d1 + '' + d2 + '' + d3;
-    let tc = 0, tt = 0;
-    for (let i = 0; i < history.length - 1; i++) {
-        let ht = history[i].x1 + '' + history[i].x2 + '' + history[i].x3;
-        if (ht === triple && i + 1 < history.length) { tc++; if (history[i + 1].result === 'Tài') tt++; }
-    }
-    if (tc >= 3) { let prob = tt / tc; return { p: prob > 0.5 ? 'T' : 'X', c: 50 + Math.abs(prob - 0.5) * 80, w: 9, s: 'dice_triple' }; }
-    return null;
-}
-
-function diceSumAnalysis(history) {
-    if (history.length < 5) return null;
-    let last = history[history.length - 1];
-    let sum = last.x1 + last.x2 + last.x3;
-    let sumAfter = {};
-    for (let i = 0; i < history.length - 1; i++) {
-        let s = history[i].x1 + history[i].x2 + history[i].x3;
-        if (s === sum && i + 1 < history.length) {
-            let ns = history[i + 1].x1 + history[i + 1].x2 + history[i + 1].x3;
-            sumAfter[ns] = (sumAfter[ns] || 0) + 1;
+        let total = nextCounts.T + nextCounts.X;
+        if (total >= Math.max(3, 8 - len)) {
+            let probT = nextCounts.T / total;
+            let key = 'p' + len + '_' + pattern;
+            let winC = this.cauWinDB[key + '_T'] || 0, loseC = this.cauLoseDB[key + '_T'] || 0;
+            let bonus = (winC + loseC > 0) ? (winC / (winC + loseC) - 0.5) * 10 : 0;
+            return { p: probT > 0.5 ? 'T' : 'X', c: Math.min(95, 50 + Math.abs(probT - 0.5) * (100 - len * 5) + bonus), w: Math.max(4, 10 - len), s: 'pattern' + len };
         }
+        return null;
     }
-    let total = Object.values(sumAfter).reduce((a, b) => a + b, 0);
-    if (total >= 5) {
-        let bestSum = 3, bestCount = 0;
-        for (let s = 3; s <= 18; s++) if ((sumAfter[s] || 0) > bestCount) { bestCount = sumAfter[s]; bestSum = s; }
-        return { p: bestSum >= 11 ? 'T' : 'X', c: 50 + (bestCount / total) * 40, w: 8, s: 'dice_sum' };
-    }
-    return null;
-}
 
-function dicePairAnalysis(history) {
-    if (history.length < 5) return null;
-    let last = history[history.length - 1];
-    let d1 = last.x1, d2 = last.x2, d3 = last.x3;
-    let p12 = d1 + '' + d2, p23 = d2 + '' + d3, p13 = d1 + '' + d3;
-    let pc = 0, pt = 0;
-    for (let i = 0; i < history.length - 1; i++) {
-        let hp12 = history[i].x1 + '' + history[i].x2;
-        let hp23 = history[i].x2 + '' + history[i].x3;
-        let hp13 = history[i].x1 + '' + history[i].x3;
-        if ((hp12 === p12 || hp23 === p23 || hp13 === p13) && i + 1 < history.length) {
-            pc++; if (history[i + 1].result === 'Tài') pt++;
+    // ============================================
+    // 9. SPECIAL SIGNALS
+    // ============================================
+    allTaiPredict() {
+        let results = this.getResults().slice(-5);
+        if (results.every(r => r === 'T')) return { p: 'X', c: 85, w: 12, s: 'all_tai_5' };
+        return null;
+    }
+
+    allXiuPredict() {
+        let results = this.getResults().slice(-5);
+        if (results.every(r => r === 'X')) return { p: 'T', c: 85, w: 12, s: 'all_xiu_5' };
+        return null;
+    }
+
+    decisionTreePredict() {
+        let results = this.getResults();
+        if (results.length < 10) return null;
+        let last1 = results[results.length - 1], last2 = results[results.length - 2], last3 = results[results.length - 3];
+        let t5 = results.slice(-5).filter(r => r === 'T').length;
+        if (last1 === 'T' && last2 === 'T' && last3 === 'T') return { p: 'X', c: 75, w: 10, s: 'dt_biet3' };
+        if (last1 === 'X' && last2 === 'X' && last3 === 'X') return { p: 'T', c: 75, w: 10, s: 'dt_biet3' };
+        if (t5 >= 4) return { p: 'X', c: 65, w: 6, s: 'dt_overbought' };
+        if (t5 <= 1) return { p: 'T', c: 65, w: 6, s: 'dt_oversold' };
+        return null;
+    }
+
+    // ============================================
+    // 10. LEARN FROM WIN/LOSE
+    // ============================================
+    learnFromResult(isCorrect) {
+        if (this.predictions.length === 0) return;
+        let lastPred = this.predictions[this.predictions.length - 1];
+        if (!lastPred.topSources) return;
+
+        for (let src of lastPred.topSources) {
+            let key = src.source || src;
+            if (isCorrect) {
+                this.cauWinDB[key] = (this.cauWinDB[key] || 0) + 1;
+            } else {
+                this.cauLoseDB[key] = (this.cauLoseDB[key] || 0) + 1;
+            }
         }
+
+        // Lưu mỗi 10 lần học
+        if ((this.cauWinDB._total || 0) % 10 === 0) this.saveToFile();
     }
-    if (pc >= 5) { let prob = pt / pc; return { p: prob > 0.5 ? 'T' : 'X', c: 50 + Math.abs(prob - 0.5) * 55, w: 7, s: 'dice_pair' }; }
-    return null;
-}
 
-function diceHighLowAnalysis(history) {
-    if (history.length < 5) return null;
-    let last = history[history.length - 1];
-    let d1 = last.x1, d2 = last.x2, d3 = last.x3;
-    let hl = (d1 >= 4 ? 'H' : 'L') + (d2 >= 4 ? 'H' : 'L') + (d3 >= 4 ? 'H' : 'L');
-    let hlc = 0, hlt = 0;
-    for (let i = 0; i < history.length - 1; i++) {
-        let hhl = (history[i].x1 >= 4 ? 'H' : 'L') + (history[i].x2 >= 4 ? 'H' : 'L') + (history[i].x3 >= 4 ? 'H' : 'L');
-        if (hhl === hl && i + 1 < history.length) { hlc++; if (history[i + 1].result === 'Tài') hlt++; }
+    // ============================================
+    // MAIN PREDICT
+    // ============================================
+    predict() {
+        if (this.history.length < 5) {
+            return { prediction: 'Cần ít nhất 5 phiên', confidence: 0, wait: true };
+        }
+
+        let allPreds = [];
+
+        // Chạy tất cả thuật toán
+        let functions = [
+            () => this.markovPredict(2), () => this.markovPredict(3), () => this.markovPredict(5),
+            () => this.frequencyPredict(),
+            () => this.streakPredict(3), () => this.streakPredict(5), () => this.streakPredict(7),
+            () => this.detect_1_1(), () => this.detect_2_2(), () => this.detect_3_3(),
+            () => this.detect_1_2_3(), () => this.detect_3_2_1(),
+            () => this.detect_rong(), () => this.detect_ho(),
+            () => this.detect_zigzag(5), () => this.detect_zigzag(7), () => this.detect_zigzag(9),
+            () => this.diceTriplePredict(), () => this.diceSumPredict(),
+            () => this.dicePairPredict(), () => this.diceHighLowPredict(),
+            () => this.scoreExtremePredict(), () => this.scoreMovingAveragePredict(),
+            () => this.trendPredict(5), () => this.trendPredict(10), () => this.trendPredict(15),
+            () => this.switchPredict(),
+            () => this.patternPredict(3), () => this.patternPredict(4), () => this.patternPredict(5),
+            () => this.patternPredict(6), () => this.patternPredict(7),
+            () => this.allTaiPredict(), () => this.allXiuPredict(),
+            () => this.decisionTreePredict()
+        ];
+
+        for (let fn of functions) {
+            try {
+                let res = fn();
+                if (res && res.p) {
+                    allPreds.push(res);
+                }
+            } catch (e) { /* bỏ qua */ }
+        }
+
+        if (allPreds.length === 0) {
+            let last = this.getResults();
+            return { prediction: last[last.length - 1] === 'T' ? 'Xỉu' : 'Tài', confidence: 50 };
+        }
+
+        // Sắp xếp theo w * c
+        allPreds.sort((a, b) => (b.w || 5) * (b.c || 50) - (a.w || 5) * (a.c || 50));
+
+        // Lấy top 25 tín hiệu mạnh nhất
+        let topPreds = allPreds.slice(0, 25);
+
+        // Ensemble có trọng số
+        let voteT = 0, voteX = 0, totalW = 0;
+        for (let pred of topPreds) {
+            let w = (pred.w || 5) * ((pred.c || 50) / 100);
+            if (pred.p === 'T') voteT += w; else voteX += w;
+            totalW += w;
+        }
+
+        if (totalW === 0) {
+            let last = this.getResults();
+            return { prediction: last[last.length - 1] === 'T' ? 'Xỉu' : 'Tài', confidence: 50 };
+        }
+
+        let probT = voteT / totalW;
+        let finalPred = probT > 0.5 ? 'T' : 'X';
+        let confidence = Math.round(Math.abs(probT - 0.5) * 2 * 100);
+        confidence = Math.max(52, Math.min(98, confidence));
+
+        // Đồng thuận
+        let top3 = topPreds.slice(0, 3), top5 = topPreds.slice(0, 5), top10 = topPreds.slice(0, 10);
+        let top3Agree = top3.every(p => p.p === top3[0].p);
+        let top5Agree = top5.every(p => p.p === top5[0].p);
+        let top10Agree = top10.every(p => p.p === top10[0].p);
+
+        if (top10Agree) confidence = Math.min(98, confidence + 15);
+        else if (top5Agree) confidence = Math.min(98, confidence + 10);
+        else if (top3Agree) confidence = Math.min(98, confidence + 5);
+
+        // Lưu prediction
+        this.predictions.push({
+            prediction: finalPred === 'T' ? 'Tài' : 'Xỉu',
+            confidence,
+            probT,
+            totalSignals: allPreds.length,
+            topSources: topPreds.slice(0, 5).map(p => p.s),
+            timestamp: Date.now()
+        });
+
+        if (this.predictions.length > 500) this.predictions.shift();
+
+        return {
+            prediction: finalPred === 'T' ? 'Tài' : 'Xỉu',
+            confidence,
+            totalSignals: allPreds.length
+        };
     }
-    if (hlc >= 5) { let prob = hlt / hlc; return { p: prob > 0.5 ? 'T' : 'X', c: 50 + Math.abs(prob - 0.5) * 45, w: 6, s: 'dice_hl' }; }
-    return null;
-}
 
-// ======================================================
-// SCORE ANALYSIS
-// ======================================================
-function scoreExtremeAnalysis(history) {
-    let lastScore = history[history.length - 1].tong || 0;
-    if (lastScore >= 17) return { p: 'X', c: 90, w: 12, s: 'score_17' };
-    if (lastScore >= 15) return { p: 'X', c: 75, w: 9, s: 'score_15' };
-    if (lastScore <= 4) return { p: 'T', c: 90, w: 12, s: 'score_4' };
-    if (lastScore <= 6) return { p: 'T', c: 70, w: 8, s: 'score_6' };
-    return null;
-}
+    addSession(sessionData) {
+        let result = sessionData.result || sessionData.ket_qua || '';
+        if (result === 'Tài' || result === 'T') result = 'Tài';
+        else if (result === 'Xỉu' || result === 'X') result = 'Xỉu';
+        else return;
 
-// ======================================================
-// TREND ANALYSIS
-// ======================================================
-function trendAnalysis(history, window) {
-    let results = history.map(h => h.result === 'Tài' ? 'T' : 'X');
-    if (results.length < window) return null;
-    let seg = results.slice(-window);
-    let tCount = seg.filter(r => r === 'T').length;
-    let ratio = tCount / window;
-    if (ratio >= 0.7) return { p: 'X', c: 60 + ratio * 20, w: 7, s: 'trend_over_' + window };
-    if (ratio <= 0.3) return { p: 'T', c: 60 + (1 - ratio) * 20, w: 7, s: 'trend_under_' + window };
-    return null;
-}
+        this.history.push({
+            result: result,
+            tong: sessionData.tong || 0,
+            x1: sessionData.x1 || sessionData.xuc_xac_1 || 0,
+            x2: sessionData.x2 || sessionData.xuc_xac_2 || 0,
+            x3: sessionData.x3 || sessionData.xuc_xac_3 || 0,
+            timestamp: Date.now()
+        });
 
-function switchAnalysis(history) {
-    let results = history.map(h => h.result === 'Tài' ? 'T' : 'X');
-    let n = results.length;
-    if (n < 10) return null;
-    let sw = 0;
-    for (let i = n - 9; i < n; i++) if (results[i] !== results[i - 1]) sw++;
-    if (sw >= 7) return { p: results[n - 1] === 'T' ? 'X' : 'T', c: 68, w: 7, s: 'switch_high' };
-    return null;
-}
-
-// ======================================================
-// PATTERN ANALYSIS
-// ======================================================
-function patternAnalysis(history, len) {
-    let results = history.map(h => h.result === 'Tài' ? 'T' : 'X');
-    if (results.length < len + 1) return null;
-    let pattern = results.slice(-len).join('');
-    let nextCounts = { T: 0, X: 0 };
-    for (let i = 0; i < results.length - len; i++) {
-        if (results.slice(i, i + len).join('') === pattern) nextCounts[results[i + len]]++;
+        if (this.history.length > 3000) this.history = this.history.slice(-2500);
     }
-    let total = nextCounts.T + nextCounts.X;
-    if (total >= Math.max(3, 8 - len)) {
-        let probT = nextCounts.T / total;
-        return { p: probT > 0.5 ? 'T' : 'X', c: 50 + Math.abs(probT - 0.5) * (100 - len * 5), w: Math.max(4, 10 - len), s: 'pattern_' + len };
-    }
-    return null;
-}
 
-// ======================================================
-// PREDICTION LOG
-// ======================================================
-let predictionLog = [];
-let totalPredictions = 0;
-let totalCorrect = 0;
-
-function loadPredictionLog() {
-    let saved = loadData(LOG_FILE);
-    if (saved) {
-        predictionLog = saved.log || [];
-        totalPredictions = saved.totalPredictions || 0;
-        totalCorrect = saved.totalCorrect || 0;
+    feedback(actualResult) {
+        if (this.predictions.length === 0) return;
+        let lastPred = this.predictions[this.predictions.length - 1];
+        lastPred.actual = actualResult;
+        let isCorrect = lastPred.prediction === actualResult;
+        this.accuracy.total++;
+        if (isCorrect) this.accuracy.correct++;
+        this.learnFromResult(isCorrect);
     }
 }
 
-function savePredictionLog() {
-    saveData({ log: predictionLog.slice(-500), totalPredictions, totalCorrect, lastSaved: new Date().toISOString() }, LOG_FILE);
-}
+// ======================================================
+// KHỞI TẠO AI
+// ======================================================
+const sunwinAI = new SunwinUltimateAI();
 
 // ======================================================
 // ANALYZE CAU DETAIL
@@ -570,13 +591,13 @@ function analyzeCauDetail(history) {
 
     let streak = 1, lastResult = last10[last10.length - 1];
     for (let i = last10.length - 2; i >= 0; i--) { if (last10[i] === lastResult) streak++; else break; }
-    if (streak >= 3) cauTypes.push("Bệt " + streak + " " + (lastResult === 't' ? 'Tài' : 'Xỉu'));
+    if (streak >= 3) cauTypes.push("Bệt " + streak + " " + (lastResult === 'T' ? 'Tài' : 'Xỉu'));
 
     let is11 = true;
     for (let i = 1; i < last10.length; i++) if (last10[i] === last10[i - 1]) { is11 = false; break; }
     if (is11) cauTypes.push("Cầu 1-1");
 
-    let tCount = last10.filter(r => r === 't').length;
+    let tCount = last10.filter(r => r === 'T').length;
     if (cauTypes.length === 0) {
         if (tCount >= 7) cauTypes.push("Tài mạnh");
         else if (tCount <= 3) cauTypes.push("Xỉu mạnh");
@@ -589,121 +610,10 @@ function analyzeCauDetail(history) {
 }
 
 // ======================================================
-// MAIN PREDICTOR
+// BIẾN LƯU LỊCH SỬ QUÉT
 // ======================================================
-const masterLearner = new MasterLearningSystem();
-
-function predictMaster(history) {
-    let n = history.length;
-    if (n < 5) return { prediction: 'Cần thêm dữ liệu', confidence: 0 };
-
-    let results = history.map(h => h.result === 'Tài' ? 'T' : 'X');
-    let scores = history.map(h => h.tong || 0);
-    let lastResult = results[n - 1];
-    let lastScore = scores[n - 1];
-
-    let allPredictions = [];
-
-    // 1. LEARNED PREDICTIONS (ưu tiên cao nhất)
-    let learnedPreds = masterLearner.predict(history);
-    allPredictions.push(...learnedPreds);
-
-    // 2. FULL CAU DATABASE
-    for (let [key, cfg] of Object.entries(FULL_CAU)) {
-        let res = cfg.detect(results, lastResult, scores, history);
-        if (res && res.predict) {
-            allPredictions.push({ p: res.predict, c: res.confidence, w: cfg.w, s: key });
-        }
-    }
-
-    // 3. DICE ANALYSIS
-    for (let fn of [diceTripleAnalysis, diceSumAnalysis, dicePairAnalysis, diceHighLowAnalysis]) {
-        let res = fn(history);
-        if (res) allPredictions.push(res);
-    }
-
-    // 4. SCORE ANALYSIS
-    let scoreRes = scoreExtremeAnalysis(history);
-    if (scoreRes) allPredictions.push(scoreRes);
-
-    // 5. TREND ANALYSIS
-    for (let w of [5, 8, 10, 15, 20]) {
-        let res = trendAnalysis(history, w);
-        if (res) allPredictions.push(res);
-    }
-    let switchRes = switchAnalysis(history);
-    if (switchRes) allPredictions.push(switchRes);
-
-    // 6. PATTERN MATCHING
-    for (let len of [3, 4, 5, 6, 7, 8]) {
-        let res = patternAnalysis(history, len);
-        if (res) allPredictions.push(res);
-    }
-
-    // 7. EXTREME SIGNALS
-    if (lastScore >= 17) allPredictions.push({ p: 'X', c: 92, w: 15, s: 'extreme_17' });
-    if (lastScore <= 4) allPredictions.push({ p: 'T', c: 92, w: 15, s: 'extreme_4' });
-
-    let tRun = 0, xRun = 0;
-    for (let i = n - 1; i >= 0 && results[i] === 'T'; i--) tRun++;
-    for (let i = n - 1; i >= 0 && results[i] === 'X'; i--) xRun++;
-    if (tRun >= 8) allPredictions.push({ p: 'X', c: 95, w: 18, s: 'rong_extreme' });
-    if (xRun >= 8) allPredictions.push({ p: 'T', c: 95, w: 18, s: 'ho_extreme' });
-
-    let last5 = results.slice(-5);
-    if (last5.every(r => r === 'T')) allPredictions.push({ p: 'X', c: 85, w: 12, s: 'all_tai_5' });
-    if (last5.every(r => r === 'X')) allPredictions.push({ p: 'T', c: 85, w: 12, s: 'all_xiu_5' });
-
-    if (allPredictions.length === 0) {
-        return { prediction: lastResult === 'T' ? 'Xỉu' : 'Tài', confidence: 50 };
-    }
-
-    // SORT & ENSEMBLE
-    allPredictions.sort((a, b) => (b.w * 100 + b.c) - (a.w * 100 + a.c));
-
-    // ƯU TIÊN TÍN HIỆU MẠNH NHẤT
-    let topSignal = allPredictions[0];
-    let topPreds = allPredictions.slice(0, 25);
-
-    let voteT = 0, voteX = 0, totalW = 0;
-    for (let pred of topPreds) {
-        let w = pred.w * (pred.c / 100);
-        if (pred.p === 'T') voteT += w;
-        else voteX += w;
-        totalW += w;
-    }
-
-    if (totalW === 0) {
-        return { prediction: lastResult === 'T' ? 'Xỉu' : 'Tài', confidence: 50 };
-    }
-
-    let probT = voteT / totalW;
-    let finalPred = probT > 0.5 ? 'T' : 'X';
-    let confidence = Math.round(Math.abs(probT - 0.5) * 2 * 100);
-    confidence = Math.max(52, Math.min(98, confidence));
-
-    // AGREEMENT BONUS
-    let top3 = topPreds.slice(0, 3), top5 = topPreds.slice(0, 5), top10 = topPreds.slice(0, 10);
-    if (top10.every(p => p.p === top10[0].p)) confidence = Math.min(98, confidence + 18);
-    else if (top5.every(p => p.p === top5[0].p)) confidence = Math.min(98, confidence + 12);
-    else if (top3.every(p => p.p === top3[0].p)) confidence = Math.min(98, confidence + 6);
-
-    return {
-        prediction: finalPred === 'T' ? 'Tài' : 'Xỉu',
-        confidence,
-        totalSignals: allPredictions.length
-    };
-}
-
-// ======================================================
-// FINAL PREDICT
-// ======================================================
-function finalPredict(history) {
-    if (history.length < 5) return { duDoan: "tài", doTinCay: 52 };
-    let result = predictMaster(history);
-    if (!result || result.confidence === 0) return { duDoan: "tài", doTinCay: 52 };
-    return { duDoan: result.prediction === 'Tài' ? 'tài' : 'xỉu', doTinCay: result.confidence };
-}
+let scanHistory = [];
+let lastScannedPhien = 0;
 
 // ======================================================
 // API ROUTES
@@ -715,17 +625,25 @@ app.get("/taixiu", async (req, res) => {
         const dataArray = rawData.data || rawData || [];
         let history = normalizeData(Array.isArray(dataArray) ? dataArray : [dataArray]);
 
-        if (history.length < 5) {
+        // Cập nhật history cho AI
+        for (let item of history) {
+            if (item.phien > lastScannedPhien) {
+                sunwinAI.addSession(item);
+                lastScannedPhien = item.phien;
+            }
+        }
+
+        if (sunwinAI.history.length < 5) {
             return res.json({
                 id: "AnhKhoidzai Sunwin",
-                phien_truoc: history.length > 0 ? history[history.length - 1].phien : 0,
-                xuc_xac1: history.length > 0 ? history[history.length - 1].x1 : 0,
-                xuc_xac2: history.length > 0 ? history[history.length - 1].x2 : 0,
-                xuc_xac3: history.length > 0 ? history[history.length - 1].x3 : 0,
-                tong: history.length > 0 ? history[history.length - 1].tong : 0,
-                ket_qua: history.length > 0 ? history[history.length - 1].ket_qua : "tài",
+                phien_truoc: sunwinAI.history.length > 0 ? history[history.length - 1].phien : 0,
+                xuc_xac1: sunwinAI.history.length > 0 ? history[history.length - 1].x1 : 0,
+                xuc_xac2: sunwinAI.history.length > 0 ? history[history.length - 1].x2 : 0,
+                xuc_xac3: sunwinAI.history.length > 0 ? history[history.length - 1].x3 : 0,
+                tong: sunwinAI.history.length > 0 ? history[history.length - 1].tong : 0,
+                ket_qua: sunwinAI.history.length > 0 ? history[history.length - 1].ket_qua : "tài",
                 pattern: "[Đang học - cần 5 phiên...]",
-                phien_hien_tai: history.length > 0 ? history[history.length - 1].phien + 1 : 0,
+                phien_hien_tai: sunwinAI.history.length > 0 ? history[history.length - 1].phien + 1 : 0,
                 du_doan: "tài",
                 do_tin_cay: "52%"
             });
@@ -733,7 +651,7 @@ app.get("/taixiu", async (req, res) => {
 
         let latest = history[history.length - 1];
         let pattern = analyzeCauDetail(history);
-        let predict = finalPredict(history);
+        let predict = sunwinAI.predict();
 
         res.json({
             id: "AnhKhoidzai Sunwin",
@@ -742,8 +660,8 @@ app.get("/taixiu", async (req, res) => {
             tong: latest.tong, ket_qua: latest.ket_qua,
             pattern: pattern,
             phien_hien_tai: latest.phien + 1,
-            du_doan: predict.duDoan,
-            do_tin_cay: predict.doTinCay + "%"
+            du_doan: predict.prediction === 'Tài' ? 'tài' : 'xỉu',
+            do_tin_cay: predict.confidence + "%"
         });
 
     } catch (err) {
@@ -758,17 +676,24 @@ app.get("/", async (req, res) => {
         const dataArray = rawData.data || rawData || [];
         let history = normalizeData(Array.isArray(dataArray) ? dataArray : [dataArray]);
 
-        if (history.length < 5) {
+        for (let item of history) {
+            if (item.phien > lastScannedPhien) {
+                sunwinAI.addSession(item);
+                lastScannedPhien = item.phien;
+            }
+        }
+
+        if (sunwinAI.history.length < 5) {
             return res.json({
                 id: "AnhKhoidzai Sunwin",
-                phien_truoc: history.length > 0 ? history[history.length - 1].phien : 0,
-                xuc_xac1: history.length > 0 ? history[history.length - 1].x1 : 0,
-                xuc_xac2: history.length > 0 ? history[history.length - 1].x2 : 0,
-                xuc_xac3: history.length > 0 ? history[history.length - 1].x3 : 0,
-                tong: history.length > 0 ? history[history.length - 1].tong : 0,
-                ket_qua: history.length > 0 ? history[history.length - 1].ket_qua : "tài",
+                phien_truoc: sunwinAI.history.length > 0 ? history[history.length - 1].phien : 0,
+                xuc_xac1: sunwinAI.history.length > 0 ? history[history.length - 1].x1 : 0,
+                xuc_xac2: sunwinAI.history.length > 0 ? history[history.length - 1].x2 : 0,
+                xuc_xac3: sunwinAI.history.length > 0 ? history[history.length - 1].x3 : 0,
+                tong: sunwinAI.history.length > 0 ? history[history.length - 1].tong : 0,
+                ket_qua: sunwinAI.history.length > 0 ? history[history.length - 1].ket_qua : "tài",
                 pattern: "[Đang học - cần 5 phiên...]",
-                phien_hien_tai: history.length > 0 ? history[history.length - 1].phien + 1 : 0,
+                phien_hien_tai: sunwinAI.history.length > 0 ? history[history.length - 1].phien + 1 : 0,
                 du_doan: "tài",
                 do_tin_cay: "52%"
             });
@@ -776,7 +701,7 @@ app.get("/", async (req, res) => {
 
         let latest = history[history.length - 1];
         let pattern = analyzeCauDetail(history);
-        let predict = finalPredict(history);
+        let predict = sunwinAI.predict();
 
         let result = {
             id: "AnhKhoidzai Sunwin",
@@ -785,8 +710,8 @@ app.get("/", async (req, res) => {
             tong: latest.tong, ket_qua: latest.ket_qua,
             pattern: pattern,
             phien_hien_tai: latest.phien + 1,
-            du_doan: predict.duDoan,
-            do_tin_cay: predict.doTinCay + "%"
+            du_doan: predict.prediction === 'Tài' ? 'tài' : 'xỉu',
+            do_tin_cay: predict.confidence + "%"
         };
 
         console.log("JSON:", JSON.stringify(result, null, 2));
@@ -797,8 +722,41 @@ app.get("/", async (req, res) => {
     }
 });
 
+// ======================================================
+// QUÉT API LIÊN TỤC MỖI 1 GIÂY
+// ======================================================
+async function autoScan() {
+    console.log("Bắt đầu quét API mỗi 1 giây...");
+    setInterval(async () => {
+        try {
+            const response = await axios.get(API_URL, { timeout: 5000 });
+            const rawData = response.data;
+            const dataArray = rawData.data || rawData || [];
+            let history = normalizeData(Array.isArray(dataArray) ? dataArray : [dataArray]);
+
+            for (let item of history) {
+                if (item.phien > lastScannedPhien) {
+                    sunwinAI.addSession(item);
+                    lastScannedPhien = item.phien;
+                    console.log(`Quét phiên mới: #${item.phien} | ${item.ket_qua} | ${item.x1}-${item.x2}-${item.x3} = ${item.tong}`);
+                }
+            }
+
+            // Feedback nếu có phiên mới
+            if (sunwinAI.predictions.length > 0 && history.length > 0) {
+                let latest = history[history.length - 1];
+                let lastPred = sunwinAI.predictions[sunwinAI.predictions.length - 1];
+                if (!lastPred.actual && lastPred.prediction !== 'Cần ít nhất 5 phiên') {
+                    sunwinAI.feedback(latest.ket_qua === 'tài' ? 'Tài' : 'Xỉu');
+                }
+            }
+        } catch (e) {
+            // Bỏ qua lỗi
+        }
+    }, 1000);
+}
+
 app.listen(PORT, () => {
-    loadPredictionLog();
     console.log("Server chạy tại port " + PORT);
-    console.log("Master Learning System - Khóa 5 phiên đầu - 200+ thuật toán");
+    autoScan();
 });

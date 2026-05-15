@@ -10,31 +10,27 @@ const API_URL = "https://sunlol-zv7x.onrender.com/data";
 // ======================================================
 function normalizeData(data) {
     if (!Array.isArray(data)) data = [data];
-    return data
-        .map(item => {
-            const d1 = item.xuc_xac_1 || item.x1 || 0;
-            const d2 = item.xuc_xac_2 || item.x2 || 0;
-            const d3 = item.xuc_xac_3 || item.x3 || 0;
-            const tong = item.tong || item.total || (d1 + d2 + d3);
-            const ketQua = (
-                item.ket_qua || item.result || (tong >= 11 ? "tài" : "xỉu")
-            ).toLowerCase();
-            return {
-                phien: item.phien || item.session || item.id || 0,
-                x1: d1, x2: d2, x3: d3,
-                xuc_xac_1: d1, xuc_xac_2: d2, xuc_xac_3: d3,
-                tong: tong,
-                ket_qua: ketQua === "tài" ? "tài" : "xỉu",
-                result: ketQua === "tài" ? "Tài" : "Xỉu"
-            };
-        })
-        .filter(item => item.phien > 0 && item.tong >= 3 && item.tong <= 18);
+    return data.map(item => {
+        const d1 = item.xuc_xac_1 || item.x1 || 0;
+        const d2 = item.xuc_xac_2 || item.x2 || 0;
+        const d3 = item.xuc_xac_3 || item.x3 || 0;
+        const tong = item.tong || item.total || (d1 + d2 + d3);
+        const ketQua = (item.ket_qua || item.result || (tong >= 11 ? "tài" : "xỉu")).toLowerCase();
+        return {
+            phien: item.phien || item.session || item.id || 0,
+            x1: d1, x2: d2, x3: d3,
+            xuc_xac_1: d1, xuc_xac_2: d2, xuc_xac_3: d3,
+            tong: tong,
+            ket_qua: ketQua === "tài" ? "tài" : "xỉu",
+            result: ketQua === "tài" ? "Tài" : "Xỉu"
+        };
+    }).filter(item => item.phien > 0 && item.tong >= 3 && item.tong <= 18);
 }
 
 // ======================================================
 // DETECTION FUNCTIONS
 // ======================================================
-function streakDetect(history, min) {
+function checkStreak(history, min) {
     if (history.length < min) return null;
     let s = 1, last = history[history.length - 1];
     for (let i = history.length - 2; i >= 0; i--) {
@@ -42,7 +38,7 @@ function streakDetect(history, min) {
     }
     if (s >= min) {
         let bp = calcBreakProb(history, last, s);
-        return { pred: bp > 0.6 ? (last === 'T' ? 'X' : 'T') : last, conf: Math.min(95, 55 + s * 3), bp };
+        return { pred: bp > 0.55 ? (last === 'T' ? 'X' : 'T') : last, conf: Math.min(95, 55 + s * 4), bp };
     }
     return null;
 }
@@ -65,16 +61,14 @@ function calcBreakProb(history, result, streak) {
     return total > 0 ? same / total : 0.5;
 }
 
-function alternateDetect(history, min) {
+function checkAlternate(history, min) {
     if (history.length < min) return null;
     let seg = history.slice(-min);
-    for (let i = 1; i < seg.length; i++) {
-        if (seg[i] === seg[i - 1]) return null;
-    }
+    for (let i = 1; i < seg.length; i++) if (seg[i] === seg[i - 1]) return null;
     return { pred: seg[seg.length - 1] === 'T' ? 'X' : 'T', conf: Math.min(92, 65 + min * 2) };
 }
 
-function blockDetect(history, size, min) {
+function checkBlock(history, size, min) {
     if (history.length < min) return null;
     let seg = history.slice(-min);
     for (let i = 0; i < seg.length; i += size) {
@@ -86,7 +80,7 @@ function blockDetect(history, size, min) {
     return { pred: phase === 0 ? (seg[seg.length - 1] === 'T' ? 'X' : 'T') : seg[seg.length - 1], conf: Math.min(94, 70 + min) };
 }
 
-function zigzagDetect(history, min) {
+function checkZigzag(history, min) {
     if (history.length < min) return null;
     let seg = history.slice(-min), sw = 0;
     for (let i = 1; i < seg.length; i++) if (seg[i] !== seg[i - 1]) sw++;
@@ -94,55 +88,84 @@ function zigzagDetect(history, min) {
     return null;
 }
 
-function detect123Pattern(history) {
+function detect123(history) {
     if (history.length < 6) return null;
     let s = history.slice(-6).join('');
     if (s === "TXXTTT") return { pred: 'X', conf: 77 };
     if (s === "XTTXXX") return { pred: 'T', conf: 77 };
     return null;
 }
-
-function detect321Pattern(history) {
+function detect321(history) {
     if (history.length < 6) return null;
     let s = history.slice(-6).join('');
     if (s === "TTTXXT") return { pred: 'X', conf: 76 };
     if (s === "XXXTTX") return { pred: 'T', conf: 76 };
     return null;
 }
-
-function detect1212Pattern(history) {
+function detect1212(history) {
     if (history.length < 8) return null;
     let s = history.slice(-8).join('');
     if (s === "TXXTTXXT") return { pred: 'X', conf: 75 };
     if (s === "XTTXXTTX") return { pred: 'T', conf: 75 };
     return null;
 }
-
-function detect1122Pattern(history) {
+function detect1122(history) {
     if (history.length < 8) return null;
     let s = history.slice(-8).join('');
     if (s === "TTXXTTXX") return { pred: 'T', conf: 74 };
     if (s === "XXTTXXTT") return { pred: 'X', conf: 74 };
     return null;
 }
-
-function detectRongPattern(history) {
+function detect2121(history) {
+    if (history.length < 8) return null;
+    let s = history.slice(-8).join('');
+    if (s === "TTXTTXTT") return { pred: 'X', conf: 73 };
+    if (s === "XXTXXTXX") return { pred: 'T', conf: 73 };
+    return null;
+}
+function detect132(history) {
+    if (history.length < 6) return null;
+    let s = history.slice(-6).join('');
+    if (s === "TXXXTT") return { pred: 'T', conf: 72 };
+    if (s === "XTTTXX") return { pred: 'X', conf: 72 };
+    return null;
+}
+function detect213(history) {
+    if (history.length < 7) return null;
+    let s = history.slice(-7).join('');
+    if (s === "XXTXTTT") return { pred: 'X', conf: 71 };
+    if (s === "TTXTXXX") return { pred: 'T', conf: 71 };
+    return null;
+}
+function detect231(history) {
+    if (history.length < 6) return null;
+    let s = history.slice(-6).join('');
+    if (s === "XXTTTX") return { pred: 'T', conf: 71 };
+    if (s === "TTXXXT") return { pred: 'X', conf: 71 };
+    return null;
+}
+function detect312(history) {
+    if (history.length < 7) return null;
+    let s = history.slice(-7).join('');
+    if (s === "TTTXTXX") return { pred: 'X', conf: 70 };
+    if (s === "XXXTXTT") return { pred: 'T', conf: 70 };
+    return null;
+}
+function detectRong(history) {
     let r = 0;
     for (let i = history.length - 1; i >= 0 && history[i] === 'T'; i--) r++;
     if (r >= 6) return { pred: 'X', conf: Math.min(92, 78 + r) };
-    if (r >= 4) return { pred: 'T', conf: 65 + r };
+    if (r >= 4) return { pred: 'T', conf: 68 + r };
     return null;
 }
-
-function detectHoPattern(history) {
+function detectHo(history) {
     let r = 0;
     for (let i = history.length - 1; i >= 0 && history[i] === 'X'; i--) r++;
     if (r >= 6) return { pred: 'T', conf: Math.min(92, 78 + r) };
-    if (r >= 4) return { pred: 'X', conf: 65 + r };
+    if (r >= 4) return { pred: 'X', conf: 68 + r };
     return null;
 }
-
-function detectDoiXungPattern(history) {
+function detectDoiXung(history) {
     if (history.length < 10) return null;
     let mid = Math.floor(history.length / 2);
     let left = history.slice(0, mid), right = history.slice(mid).reverse();
@@ -154,16 +177,14 @@ function detectDoiXungPattern(history) {
     }
     return null;
 }
-
-function detectTamGiacPattern(history) {
+function detectTamGiac(history) {
     if (history.length < 5) return null;
     let s = history.slice(-5).join('');
     if (s === "TXTXT") return { pred: 'X', conf: 80 };
     if (s === "XTXTX") return { pred: 'T', conf: 80 };
     return null;
 }
-
-function detectBacThangPattern(history) {
+function detectBacThang(history) {
     if (history.length < 15) return null;
     let streaks = [], cur = 1;
     for (let i = 1; i < history.length; i++) {
@@ -180,50 +201,161 @@ function detectBacThangPattern(history) {
     }
     return null;
 }
+function detectBietKep(history) {
+    if (history.length < 20) return null;
+    let list = [], cur = 1, ct = history[0];
+    for (let i = 1; i < history.length; i++) {
+        if (history[i] === ct) cur++;
+        else { if (cur >= 3) list.push({ type: ct, length: cur }); ct = history[i]; cur = 1; }
+    }
+    if (cur >= 3) list.push({ type: ct, length: cur });
+    if (list.length >= 2) {
+        let l2 = list.slice(-2);
+        if (l2[0].type !== l2[1].type) {
+            let diff = Math.abs(l2[0].length - l2[1].length);
+            if (diff <= Math.max(l2[0].length, l2[1].length) * 0.3) {
+                let avg = (l2[0].length + l2[1].length) / 2;
+                let cl = 1;
+                for (let i = history.length - 2; i >= 0; i--) { if (history[i] === history[history.length - 1]) cl++; else break; }
+                return { pred: cl < avg ? history[history.length - 1] : (history[history.length - 1] === 'T' ? 'X' : 'T'), conf: 70 };
+            }
+        }
+    }
+    return null;
+}
+function detectNemTang(history) {
+    if (history.length < 12) return null;
+    let scores = history.slice(-12).map(h => h.tong || 0);
+    let maxS = Math.max(...scores), minS = Math.min(...scores);
+    if (maxS - minS <= 5 && maxS - minS >= 2) {
+        let first = scores.slice(0, 6), second = scores.slice(6);
+        if (second.reduce((a, b) => a + b, 0) / 6 > first.reduce((a, b) => a + b, 0) / 6 + 2) return { pred: 'T', conf: 62 };
+    }
+    return null;
+}
+function detectNemGiam(history) {
+    if (history.length < 12) return null;
+    let scores = history.slice(-12).map(h => h.tong || 0);
+    let maxS = Math.max(...scores), minS = Math.min(...scores);
+    if (maxS - minS <= 5 && maxS - minS >= 2) {
+        let first = scores.slice(0, 6), second = scores.slice(6);
+        if (second.reduce((a, b) => a + b, 0) / 6 < first.reduce((a, b) => a + b, 0) / 6 - 2) return { pred: 'X', conf: 62 };
+    }
+    return null;
+}
+function detectVaiDauVai(history) {
+    if (history.length < 15) return null;
+    let scores = history.slice(-15).map(h => h.tong || 0);
+    let peaks = [];
+    for (let i = 2; i < scores.length - 2; i++) {
+        if (scores[i] > scores[i - 1] && scores[i] > scores[i - 2] && scores[i] > scores[i + 1] && scores[i] > scores[i + 2]) {
+            peaks.push({ val: scores[i], idx: i });
+        }
+    }
+    if (peaks.length >= 3) {
+        let l3 = peaks.slice(-3);
+        if (l3[0].val < l3[1].val && l3[2].val < l3[1].val && Math.abs(l3[0].val - l3[2].val) <= 2) return { pred: 'X', conf: 75 };
+    }
+    return null;
+}
+function detectHaiDinh(history) {
+    if (history.length < 10) return null;
+    let scores = history.slice(-10).map(h => h.tong || 0);
+    let peaks = [];
+    for (let i = 2; i < scores.length - 2; i++) {
+        if (scores[i] > scores[i - 1] && scores[i] > scores[i + 1]) peaks.push({ val: scores[i], idx: i });
+    }
+    if (peaks.length >= 2) {
+        let l2 = peaks.slice(-2);
+        if (Math.abs(l2[0].val - l2[1].val) <= 1 && l2[1].idx - l2[0].idx >= 4) return { pred: 'X', conf: 70 };
+    }
+    return null;
+}
+function detectHaiDay(history) {
+    if (history.length < 10) return null;
+    let scores = history.slice(-10).map(h => h.tong || 0);
+    let troughs = [];
+    for (let i = 2; i < scores.length - 2; i++) {
+        if (scores[i] < scores[i - 1] && scores[i] < scores[i + 1]) troughs.push({ val: scores[i], idx: i });
+    }
+    if (troughs.length >= 2) {
+        let l2 = troughs.slice(-2);
+        if (Math.abs(l2[0].val - l2[1].val) <= 1 && l2[1].idx - l2[0].idx >= 4) return { pred: 'T', conf: 70 };
+    }
+    return null;
+}
+function detectDiamond(history) {
+    if (history.length < 15) return null;
+    let scores = history.slice(-15).map(h => h.tong || 0);
+    let mid = Math.floor(scores.length / 2);
+    let fRange = Math.max(...scores.slice(0, mid)) - Math.min(...scores.slice(0, mid));
+    let sRange = Math.max(...scores.slice(mid)) - Math.min(...scores.slice(mid));
+    if (fRange > 4 && sRange < 3) return { pred: 'X', conf: 68 };
+    return null;
+}
+function detectConSoi(history) {
+    if (history.length < 8) return null;
+    let s = history.slice(-8).join('');
+    if (s === "TXTTXTTX") return { pred: 'T', conf: 72 };
+    if (s === "XTXXTXXT") return { pred: 'X', conf: 72 };
+    return null;
+}
 
 // ======================================================
-// CAU PATTERNS
+// FULL CAU DATABASE - 50+ LOAI CAU
 // ======================================================
-const CAU_PATTERNS = {
-    biet_3: { type: 'biet', len: 3, weight: 8, detect: (h) => streakDetect(h, 3) },
-    biet_4: { type: 'biet', len: 4, weight: 9, detect: (h) => streakDetect(h, 4) },
-    biet_5: { type: 'biet', len: 5, weight: 10, detect: (h) => streakDetect(h, 5) },
-    biet_6: { type: 'biet', len: 6, weight: 10, detect: (h) => streakDetect(h, 6) },
-    biet_7: { type: 'biet', len: 7, weight: 10, detect: (h) => streakDetect(h, 7) },
-    biet_8: { type: 'biet', len: 8, weight: 10, detect: (h) => streakDetect(h, 8) },
-    c11_6: { type: '1-1', len: 6, weight: 9, detect: (h) => alternateDetect(h, 6) },
-    c11_8: { type: '1-1', len: 8, weight: 10, detect: (h) => alternateDetect(h, 8) },
-    c11_10: { type: '1-1', len: 10, weight: 10, detect: (h) => alternateDetect(h, 10) },
-    c22_6: { type: '2-2', len: 6, weight: 9, detect: (h) => blockDetect(h, 2, 6) },
-    c22_8: { type: '2-2', len: 8, weight: 10, detect: (h) => blockDetect(h, 2, 8) },
-    c33_9: { type: '3-3', len: 9, weight: 9, detect: (h) => blockDetect(h, 3, 9) },
-    c33_12: { type: '3-3', len: 12, weight: 10, detect: (h) => blockDetect(h, 3, 12) },
-    c123: { type: '1-2-3', len: 6, weight: 8, detect: detect123Pattern },
-    c321: { type: '3-2-1', len: 6, weight: 8, detect: detect321Pattern },
-    c1212: { type: '1-2-1-2', len: 8, weight: 7, detect: detect1212Pattern },
-    c1122: { type: '1-1-2-2', len: 8, weight: 7, detect: detect1122Pattern },
-    rong: { type: 'rong', len: 6, weight: 10, detect: detectRongPattern },
-    ho: { type: 'ho', len: 6, weight: 10, detect: detectHoPattern },
-    zigzag7: { type: 'zigzag', len: 7, weight: 8, detect: (h) => zigzagDetect(h, 7) },
-    zigzag9: { type: 'zigzag', len: 9, weight: 9, detect: (h) => zigzagDetect(h, 9) },
-    doi_xung: { type: 'doi_xung', len: 10, weight: 6, detect: detectDoiXungPattern },
-    tam_giac: { type: 'tam_giac', len: 5, weight: 7, detect: detectTamGiacPattern },
-    bac_thang: { type: 'bac_thang', len: 15, weight: 5, detect: detectBacThangPattern },
-    c44_8: { type: '4-4', len: 8, weight: 8, detect: (h) => blockDetect(h, 4, 8) },
-    c55_10: { type: '5-5', len: 10, weight: 7, detect: (h) => blockDetect(h, 5, 10) }
+const FULL_CAU = {
+    biet_3: { type: 'biet', len: 3, w: 8, detect: (h) => checkStreak(h, 3) },
+    biet_4: { type: 'biet', len: 4, w: 9, detect: (h) => checkStreak(h, 4) },
+    biet_5: { type: 'biet', len: 5, w: 10, detect: (h) => checkStreak(h, 5) },
+    biet_6: { type: 'biet', len: 6, w: 10, detect: (h) => checkStreak(h, 6) },
+    biet_7: { type: 'biet', len: 7, w: 10, detect: (h) => checkStreak(h, 7) },
+    biet_8: { type: 'biet', len: 8, w: 10, detect: (h) => checkStreak(h, 8) },
+    c11_6: { type: '1-1', len: 6, w: 9, detect: (h) => checkAlternate(h, 6) },
+    c11_8: { type: '1-1', len: 8, w: 10, detect: (h) => checkAlternate(h, 8) },
+    c11_10: { type: '1-1', len: 10, w: 10, detect: (h) => checkAlternate(h, 10) },
+    c22_6: { type: '2-2', len: 6, w: 9, detect: (h) => checkBlock(h, 2, 6) },
+    c22_8: { type: '2-2', len: 8, w: 10, detect: (h) => checkBlock(h, 2, 8) },
+    c33_9: { type: '3-3', len: 9, w: 9, detect: (h) => checkBlock(h, 3, 9) },
+    c33_12: { type: '3-3', len: 12, w: 10, detect: (h) => checkBlock(h, 3, 12) },
+    c44_8: { type: '4-4', len: 8, w: 8, detect: (h) => checkBlock(h, 4, 8) },
+    c55_10: { type: '5-5', len: 10, w: 7, detect: (h) => checkBlock(h, 5, 10) },
+    c123: { type: '1-2-3', len: 6, w: 8, detect: detect123 },
+    c321: { type: '3-2-1', len: 6, w: 8, detect: detect321 },
+    c1212: { type: '1-2-1-2', len: 8, w: 7, detect: detect1212 },
+    c1122: { type: '1-1-2-2', len: 8, w: 7, detect: detect1122 },
+    c2121: { type: '2-1-2-1', len: 8, w: 7, detect: detect2121 },
+    c132: { type: '1-3-2', len: 6, w: 6, detect: detect132 },
+    c213: { type: '2-1-3', len: 7, w: 6, detect: detect213 },
+    c231: { type: '2-3-1', len: 6, w: 6, detect: detect231 },
+    c312: { type: '3-1-2', len: 7, w: 6, detect: detect312 },
+    rong: { type: 'rong', len: 6, w: 10, detect: detectRong },
+    ho: { type: 'ho', len: 6, w: 10, detect: detectHo },
+    zigzag7: { type: 'zigzag', len: 7, w: 8, detect: (h) => checkZigzag(h, 7) },
+    zigzag9: { type: 'zigzag', len: 9, w: 9, detect: (h) => checkZigzag(h, 9) },
+    doi_xung: { type: 'doi_xung', len: 10, w: 6, detect: detectDoiXung },
+    tam_giac: { type: 'tam_giac', len: 5, w: 7, detect: detectTamGiac },
+    bac_thang: { type: 'bac_thang', len: 15, w: 5, detect: detectBacThang },
+    biet_kep: { type: 'biet_kep', len: 20, w: 6, detect: detectBietKep },
+    nem_tang: { type: 'nem', len: 12, w: 5, detect: detectNemTang },
+    nem_giam: { type: 'nem', len: 12, w: 5, detect: detectNemGiam },
+    vai_dau_vai: { type: 'vai_dau_vai', len: 15, w: 6, detect: detectVaiDauVai },
+    hai_dinh: { type: 'hai_dinh', len: 10, w: 6, detect: detectHaiDinh },
+    hai_day: { type: 'hai_day', len: 10, w: 6, detect: detectHaiDay },
+    diamond: { type: 'diamond', len: 15, w: 5, detect: detectDiamond },
+    con_soi: { type: 'con_soi', len: 8, w: 5, detect: detectConSoi }
 };
 
 // ======================================================
-// DICE SUPER ANALYSIS
+// DICE ANALYSIS
 // ======================================================
-function diceSuperAnalysis(history) {
+function analyzeDice(history) {
     if (history.length < 5) return [];
     let preds = [];
     let last = history[history.length - 1];
     let d1 = last.x1, d2 = last.x2, d3 = last.x3;
     let sum = d1 + d2 + d3;
 
-    // Tong diem
     let sumAfter = {};
     for (let i = 0; i < history.length - 1; i++) {
         let s = history[i].x1 + history[i].x2 + history[i].x3;
@@ -236,52 +368,34 @@ function diceSuperAnalysis(history) {
     if (totalAfter >= 5) {
         let bestSum = 3, bestCount = 0;
         for (let s = 3; s <= 18; s++) if ((sumAfter[s] || 0) > bestCount) { bestCount = sumAfter[s]; bestSum = s; }
-        preds.push({ pred: bestSum >= 11 ? 'T' : 'X', conf: 50 + (bestCount / totalAfter) * 35, w: 8, src: 'sum' });
+        preds.push({ pred: bestSum >= 11 ? 'T' : 'X', conf: 50 + (bestCount / totalAfter) * 35, src: 'sum', w: 8 });
     }
 
-    // Triple
     let triple = d1 + '' + d2 + '' + d3;
     let tc = 0, tt = 0;
     for (let i = 0; i < history.length - 1; i++) {
         let ht = history[i].x1 + '' + history[i].x2 + '' + history[i].x3;
-        if (ht === triple && i + 1 < history.length) {
-            tc++;
-            if (history[i + 1].result === 'Tài') tt++;
-        }
+        if (ht === triple && i + 1 < history.length) { tc++; if (history[i + 1].result === 'Tài') tt++; }
     }
-    if (tc >= 3) {
-        let prob = tt / tc;
-        preds.push({ pred: prob > 0.5 ? 'T' : 'X', conf: 50 + Math.abs(prob - 0.5) * 70, w: 9, src: 'triple' });
-    }
+    if (tc >= 3) { let prob = tt / tc; preds.push({ pred: prob > 0.5 ? 'T' : 'X', conf: 50 + Math.abs(prob - 0.5) * 70, src: 'triple', w: 9 }); }
 
-    // Cap
     let p12 = d1 + '' + d2, p23 = d2 + '' + d3, p13 = d1 + '' + d3;
     let pc = 0, pt = 0;
     for (let i = 0; i < history.length - 1; i++) {
         let hp12 = history[i].x1 + '' + history[i].x2;
         let hp23 = history[i].x2 + '' + history[i].x3;
         let hp13 = history[i].x1 + '' + history[i].x3;
-        if ((hp12 === p12 || hp23 === p23 || hp13 === p13) && i + 1 < history.length) {
-            pc++;
-            if (history[i + 1].result === 'Tài') pt++;
-        }
+        if ((hp12 === p12 || hp23 === p23 || hp13 === p13) && i + 1 < history.length) { pc++; if (history[i + 1].result === 'Tài') pt++; }
     }
-    if (pc >= 5) {
-        let prob = pt / pc;
-        preds.push({ pred: prob > 0.5 ? 'T' : 'X', conf: 50 + Math.abs(prob - 0.5) * 50, w: 7, src: 'pair' });
-    }
+    if (pc >= 5) { let prob = pt / pc; preds.push({ pred: prob > 0.5 ? 'T' : 'X', conf: 50 + Math.abs(prob - 0.5) * 50, src: 'pair', w: 7 }); }
 
-    // High/Low
     let hl = (d1 >= 4 ? 'H' : 'L') + (d2 >= 4 ? 'H' : 'L') + (d3 >= 4 ? 'H' : 'L');
     let hlc = 0, hlt = 0;
     for (let i = 0; i < history.length - 1; i++) {
         let hhl = (history[i].x1 >= 4 ? 'H' : 'L') + (history[i].x2 >= 4 ? 'H' : 'L') + (history[i].x3 >= 4 ? 'H' : 'L');
         if (hhl === hl && i + 1 < history.length) { hlc++; if (history[i + 1].result === 'Tài') hlt++; }
     }
-    if (hlc >= 5) {
-        let prob = hlt / hlc;
-        preds.push({ pred: prob > 0.5 ? 'T' : 'X', conf: 50 + Math.abs(prob - 0.5) * 40, w: 6, src: 'hl' });
-    }
+    if (hlc >= 5) { let prob = hlt / hlc; preds.push({ pred: prob > 0.5 ? 'T' : 'X', conf: 50 + Math.abs(prob - 0.5) * 40, src: 'hl', w: 6 }); }
 
     return preds;
 }
@@ -292,59 +406,46 @@ function diceSuperAnalysis(history) {
 function predictMax(history) {
     let n = history.length;
     if (n < 5) return { prediction: 'Chờ thêm dữ liệu', confidence: 0 };
-
-    let results = history.map(h => {
-        let r = h.result || '';
-        return (r === 'Tài' || r === 'T') ? 'T' : 'X';
-    });
-
+    let results = history.map(h => (h.result === 'Tài' || h.result === 'T') ? 'T' : 'X');
     let allPreds = [];
 
-    // CAU detection
-    for (let [key, cfg] of Object.entries(CAU_PATTERNS)) {
+    for (let [key, cfg] of Object.entries(FULL_CAU)) {
         let res = cfg.detect(results);
-        if (res && res.pred) {
-            allPreds.push({ pred: res.pred, conf: res.conf, weight: cfg.weight, type: cfg.type, key });
-        }
+        if (res && res.pred) allPreds.push({ pred: res.pred, conf: res.conf, w: cfg.w, type: cfg.type, key });
     }
 
-    // DICE analysis
-    let dicePreds = diceSuperAnalysis(history);
-    for (let dp of dicePreds) {
-        allPreds.push({ pred: dp.pred, conf: dp.conf, weight: dp.w, type: 'dice', key: dp.src });
-    }
+    let dicePreds = analyzeDice(history);
+    for (let dp of dicePreds) allPreds.push({ pred: dp.pred, conf: dp.conf, w: dp.w, type: 'dice', key: dp.src });
 
-    // Score extremes
     let lastScore = history[n - 1].tong || 0;
-    if (lastScore >= 17) allPreds.push({ pred: 'X', conf: 80, weight: 9, type: 'score', key: 'score_high' });
-    else if (lastScore >= 15) allPreds.push({ pred: 'X', conf: 70, weight: 7, type: 'score', key: 'score_high' });
-    if (lastScore <= 4) allPreds.push({ pred: 'T', conf: 80, weight: 9, type: 'score', key: 'score_low' });
-    else if (lastScore <= 6) allPreds.push({ pred: 'T', conf: 65, weight: 6, type: 'score', key: 'score_low' });
+    if (lastScore >= 17) allPreds.push({ pred: 'X', conf: 82, w: 9, type: 'score', key: 'score_vhigh' });
+    else if (lastScore >= 15) allPreds.push({ pred: 'X', conf: 72, w: 7, type: 'score', key: 'score_high' });
+    if (lastScore <= 4) allPreds.push({ pred: 'T', conf: 82, w: 9, type: 'score', key: 'score_vlow' });
+    else if (lastScore <= 6) allPreds.push({ pred: 'T', conf: 68, w: 6, type: 'score', key: 'score_low' });
 
-    // Trend 10 phien
     let last10 = results.slice(-10);
     let tCount = last10.filter(r => r === 'T').length;
-    if (tCount >= 8) allPreds.push({ pred: 'X', conf: 70, weight: 7, type: 'trend', key: 'overbought' });
-    else if (tCount >= 7) allPreds.push({ pred: 'X', conf: 62, weight: 5, type: 'trend', key: 'overbought' });
-    if (tCount <= 2) allPreds.push({ pred: 'T', conf: 70, weight: 7, type: 'trend', key: 'oversold' });
-    else if (tCount <= 3) allPreds.push({ pred: 'T', conf: 62, weight: 5, type: 'trend', key: 'oversold' });
+    if (tCount >= 8) allPreds.push({ pred: 'X', conf: 72, w: 7, type: 'trend', key: 'overbought' });
+    else if (tCount >= 7) allPreds.push({ pred: 'X', conf: 64, w: 5, type: 'trend', key: 'overbought_w' });
+    if (tCount <= 2) allPreds.push({ pred: 'T', conf: 72, w: 7, type: 'trend', key: 'oversold' });
+    else if (tCount <= 3) allPreds.push({ pred: 'T', conf: 64, w: 5, type: 'trend', key: 'oversold_w' });
 
-    // Recent switches
     let switches = 0;
     for (let i = n - 9; i < n; i++) if (results[i] !== results[i - 1]) switches++;
-    if (switches >= 7) allPreds.push({ pred: results[n - 1] === 'T' ? 'X' : 'T', conf: 65, weight: 6, type: 'switch', key: 'high_switch' });
+    if (switches >= 7) allPreds.push({ pred: results[n - 1] === 'T' ? 'X' : 'T', conf: 68, w: 6, type: 'switch', key: 'high_switch' });
+
+    let last5 = results.slice(-5);
+    let l5t = last5.filter(r => r === 'T').length;
+    if (l5t === 5) allPreds.push({ pred: 'X', conf: 75, w: 8, type: 'recent', key: 'all_tai' });
+    if (l5t === 0) allPreds.push({ pred: 'T', conf: 75, w: 8, type: 'recent', key: 'all_xiu' });
 
     if (allPreds.length === 0) return { prediction: results[n - 1] === 'T' ? 'Xỉu' : 'Tài', confidence: 50 };
 
-    // Sort by weight * confidence
-    allPreds.sort((a, b) => (b.weight * b.conf) - (a.weight * a.conf));
-
-    // Ensemble top predictions
-    let topPreds = allPreds.slice(0, 15);
+    allPreds.sort((a, b) => (b.w * 100 + b.conf) - (a.w * 100 + a.conf));
+    let topPreds = allPreds.slice(0, 20);
     let voteT = 0, voteX = 0, totalW = 0;
-
     for (let p of topPreds) {
-        let w = p.weight * (p.conf / 100);
+        let w = p.w * (p.conf / 100);
         if (p.pred === 'T') voteT += w;
         else voteX += w;
         totalW += w;
@@ -357,25 +458,17 @@ function predictMax(history) {
     let confidence = Math.round(Math.abs(probT - 0.5) * 2 * 100);
     confidence = Math.max(52, Math.min(98, confidence));
 
-    // Auto-adjust confidence based on agreement
     let top3Agree = topPreds.slice(0, 3).every(p => p.pred === topPreds[0].pred);
     let top5Agree = topPreds.slice(0, 5).every(p => p.pred === topPreds[0].pred);
-    if (top5Agree) confidence = Math.min(98, confidence + 8);
+    let top10Agree = topPreds.slice(0, 10).every(p => p.pred === topPreds[0].pred);
+    if (top10Agree) confidence = Math.min(98, confidence + 12);
+    else if (top5Agree) confidence = Math.min(98, confidence + 8);
     else if (top3Agree) confidence = Math.min(98, confidence + 4);
 
     return {
         prediction: finalPred === 'T' ? 'Tài' : 'Xỉu',
         confidence,
-        probT,
-        topCau: topPreds.slice(0, 5).map(p => ({
-            type: p.type,
-            name: p.key,
-            predict: p.pred === 'T' ? 'Tài' : 'Xỉu',
-            confidence: p.conf
-        })),
-        totalSignals: allPreds.length,
-        top3Agree,
-        top5Agree
+        totalSignals: allPreds.length
     };
 }
 
@@ -388,14 +481,10 @@ function analyzeCauDetail(history) {
     let last10 = results.slice(-10);
     let patternStr = last10.join("");
     let cauTypes = [];
-
-    for (let [key, cfg] of Object.entries(CAU_PATTERNS)) {
+    for (let [key, cfg] of Object.entries(FULL_CAU)) {
         let res = cfg.detect(results);
-        if (res) {
-            cauTypes.push(key.replace(/_/g, ' '));
-        }
+        if (res) cauTypes.push(key.replace(/_/g, ' '));
     }
-
     if (cauTypes.length === 0) {
         let tCount = last10.filter(r => r === 'T').length;
         if (tCount >= 7) cauTypes.push("Tài mạnh");
@@ -404,7 +493,6 @@ function analyzeCauDetail(history) {
         else if (tCount <= 4) cauTypes.push("Nghiêng Xỉu");
         else cauTypes.push("Cân bằng");
     }
-
     return "[Cầu " + cauTypes.slice(0, 3).join(', ') + "] - " + patternStr;
 }
 
@@ -430,7 +518,6 @@ app.get("/taixiu", async (req, res) => {
         const rawData = response.data;
         const dataArray = rawData.data || rawData || [];
         let history = normalizeData(Array.isArray(dataArray) ? dataArray : [dataArray]);
-
         if (history.length < 10) {
             return res.json({
                 id: "AnhKhoidzai Sunwin",
@@ -446,32 +533,21 @@ app.get("/taixiu", async (req, res) => {
                 do_tin_cay: "52%"
             });
         }
-
         let latest = history[history.length - 1];
         let pattern = analyzeCauDetail(history);
         let predict = finalPredict(history);
-
         res.json({
             id: "AnhKhoidzai Sunwin",
             phien_truoc: latest.phien,
-            xuc_xac1: latest.x1,
-            xuc_xac2: latest.x2,
-            xuc_xac3: latest.x3,
-            tong: latest.tong,
-            ket_qua: latest.ket_qua,
+            xuc_xac1: latest.x1, xuc_xac2: latest.x2, xuc_xac3: latest.x3,
+            tong: latest.tong, ket_qua: latest.ket_qua,
             pattern: pattern,
             phien_hien_tai: latest.phien + 1,
             du_doan: predict.duDoan,
             do_tin_cay: predict.doTinCay + "%"
         });
-
     } catch (err) {
-        res.json({
-            id: "AnhKhoidzai Sunwin",
-            phien_truoc: 0, xuc_xac1: 0, xuc_xac2: 0, xuc_xac3: 0, tong: 0,
-            ket_qua: "tài", pattern: "[Đang kết nối...]", phien_hien_tai: 0,
-            du_doan: "tài", do_tin_cay: "52%"
-        });
+        res.json({ id: "AnhKhoidzai Sunwin", phien_truoc: 0, xuc_xac1: 0, xuc_xac2: 0, xuc_xac3: 0, tong: 0, ket_qua: "tài", pattern: "[Đang kết nối...]", phien_hien_tai: 0, du_doan: "tài", do_tin_cay: "52%" });
     }
 });
 
@@ -481,7 +557,6 @@ app.get("/", async (req, res) => {
         const rawData = response.data;
         const dataArray = rawData.data || rawData || [];
         let history = normalizeData(Array.isArray(dataArray) ? dataArray : [dataArray]);
-
         if (history.length < 10) {
             return res.json({
                 id: "AnhKhoidzai Sunwin",
@@ -497,35 +572,23 @@ app.get("/", async (req, res) => {
                 do_tin_cay: "52%"
             });
         }
-
         let latest = history[history.length - 1];
         let pattern = analyzeCauDetail(history);
         let predict = finalPredict(history);
-
         let result = {
             id: "AnhKhoidzai Sunwin",
             phien_truoc: latest.phien,
-            xuc_xac1: latest.x1,
-            xuc_xac2: latest.x2,
-            xuc_xac3: latest.x3,
-            tong: latest.tong,
-            ket_qua: latest.ket_qua,
+            xuc_xac1: latest.x1, xuc_xac2: latest.x2, xuc_xac3: latest.x3,
+            tong: latest.tong, ket_qua: latest.ket_qua,
             pattern: pattern,
             phien_hien_tai: latest.phien + 1,
             du_doan: predict.duDoan,
             do_tin_cay: predict.doTinCay + "%"
         };
-
         console.log("JSON:", JSON.stringify(result, null, 2));
         res.json(result);
-
     } catch (err) {
-        res.json({
-            id: "AnhKhoidzai Sunwin",
-            phien_truoc: 0, xuc_xac1: 0, xuc_xac2: 0, xuc_xac3: 0, tong: 0,
-            ket_qua: "tài", pattern: "[Đang kết nối...]", phien_hien_tai: 0,
-            du_doan: "tài", do_tin_cay: "52%"
-        });
+        res.json({ id: "AnhKhoidzai Sunwin", phien_truoc: 0, xuc_xac1: 0, xuc_xac2: 0, xuc_xac3: 0, tong: 0, ket_qua: "tài", pattern: "[Đang kết nối...]", phien_hien_tai: 0, du_doan: "tài", do_tin_cay: "52%" });
     }
 });
 

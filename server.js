@@ -13,9 +13,11 @@ const DATA_FILE = "data.json";
 
 const FETCH_DELAY = 100; // 0.1 giây
 
-const MAX_DATA = 30000;
+const MAX_DATA = 10000;
 
 let isFetching = false;
+let fetchCount = 0;
+let successCount = 0;
 
 // ======================
 // LOAD DATA
@@ -25,6 +27,7 @@ function loadData() {
     if (fs.existsSync(DATA_FILE)) {
       const data = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
       if (Array.isArray(data)) {
+        console.log(`📂 Đã load ${data.length} records từ file`);
         return data;
       }
     }
@@ -35,7 +38,7 @@ function loadData() {
 }
 
 // ======================
-// SAVE DATA (debounce 1 giây)
+// SAVE DATA
 // ======================
 let saveTimeout = null;
 function saveData(data) {
@@ -54,7 +57,7 @@ function forceSave() {
   if (saveTimeout) clearTimeout(saveTimeout);
   try {
     fs.writeFileSync(DATA_FILE, JSON.stringify(database, null, 2), "utf8");
-    console.log("Đã lưu data thành công!");
+    console.log("💾 Đã lưu data!");
   } catch (e) {
     console.log("Force save lỗi:", e.message);
   }
@@ -64,90 +67,30 @@ function forceSave() {
 // MEMORY
 // ======================
 let database = loadData();
-let existingSessions = new Set(database.map((i) => i.phien).filter(p => p !== null));
+let existingSessions = new Set(database.map((i) => i.phien));
 
 // ======================
 // FETCH API
 // ======================
-async function fetchData(retries = 3) {
-  for (let i = 0; i < retries; i++) {
-    try {
-      const res = await axios.get(API_URL, {
-        timeout: 2000,
-        headers: {
-          "User-Agent": "Mozilla/5.0",
-          "Accept": "application/json",
-          "Cache-Control": "no-cache"
-        }
-      });
-      return res.data;
-    } catch (e) {
-      if (i === retries - 1) {
-        console.log("API lỗi sau", retries, "lần thử:", e.message);
-        return null;
+async function fetchData() {
+  try {
+    const res = await axios.get(API_URL, {
+      timeout: 5000,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "application/json",
+        "Cache-Control": "no-cache"
       }
-      await new Promise(r => setTimeout(r, 50));
-    }
-  }
-}
-
-// ======================
-// PARSE DATA - Xử lý mọi format API
-// ======================
-function parseData(rawData) {
-  // Format 1: { success: true, data: { phien, ket_qua, ... } }
-  if (rawData && rawData.success && rawData.data && rawData.data.phien) {
-    return {
-      ...rawData.data,
-      source_format: "format_1"
-    };
-  }
-  
-  // Format 2: Trả thẳng { phien, ket_qua, ... }
-  if (rawData && rawData.phien) {
-    return {
-      ...rawData,
-      source_format: "format_2"
-    };
-  }
-  
-  // Format 3: { data: { phien, md5_hash } } - Format bạn đang thấy
-  if (rawData && rawData.data) {
-    const data = rawData.data;
+    });
     
-    // Nếu có phien và md5_hash
-    if (data.phien !== undefined || data.md5_hash !== undefined) {
-      // Có thể API đang chờ phiên mới, trả về null
-      if (data.phien === null) {
-        return {
-          phien: null,
-          md5_hash: data.md5_hash || "",
-          ket_qua: data.ket_qua || "",
-          tong: data.tong || 0,
-          xuc_xac_1: data.xuc_xac_1 || 0,
-          xuc_xac_2: data.xuc_xac_2 || 0,
-          xuc_xac_3: data.xuc_xac_3 || 0,
-          thoi_gian: data.thoi_gian || "",
-          source_format: "format_3"
-        };
-      }
-      
-      return {
-        ...data,
-        source_format: "format_3"
-      };
+    fetchCount++;
+    return res.data;
+  } catch (e) {
+    if (fetchCount % 50 === 0) {
+      console.log("API lỗi:", e.message);
     }
+    return null;
   }
-  
-  // Format 4: Object có ket_qua trực tiếp
-  if (rawData && rawData.ket_qua) {
-    return {
-      ...rawData,
-      source_format: "format_4"
-    };
-  }
-  
-  return null;
 }
 
 // ======================
@@ -155,95 +98,65 @@ function parseData(rawData) {
 // ======================
 async function collector() {
   console.log("╔════════════════════════════════════════╗");
-  console.log("║     SUNWIN DATA COLLECTOR              ║");
+  console.log("║     SUNWIN DATA COLLECTOR v2.0         ║");
   console.log("╠════════════════════════════════════════╣");
   console.log(`║  Fetch: mỗi ${FETCH_DELAY}ms (0.1 giây)      ║`);
-  console.log(`║  Total hiện tại: ${database.length} records     ║`);
-  console.log("╚════════════════════════════════════════╝");
-  console.log("");
+  console.log(`║  Total: ${database.length} records               ║`);
+  console.log("╚════════════════════════════════════════╝\n");
 
+  // Chạy liên tục
   while (true) {
-    try {
-      const rawResult = await fetchData();
+    if (!isFetching) {
+      isFetching = true;
       
-      if (!rawResult) {
-        await new Promise(r => setTimeout(r, FETCH_DELAY));
-        continue;
-      }
-      
-      // Parse data
-      const d = parseData(rawResult);
-      
-      if (!d) {
-        console.log("⚠️ Không parse được data:", JSON.stringify(rawResult).substring(0, 200));
-        await new Promise(r => setTimeout(r, FETCH_DELAY));
-        continue;
-      }
-      
-      // Log format để debug
-      if (database.length === 0) {
-        console.log("📊 Format API:", d.source_format);
-        console.log("📊 Data mẫu:", JSON.stringify(d));
-      }
-      
-      const phien = d.phien;
-      
-      // Bỏ qua nếu phien là null (đang chờ phiên mới)
-      if (phien === null || phien === undefined) {
-        // Log mỗi 5 giây để tránh spam
-        if (Math.floor(Date.now() / 5000) % 2 === 0) {
-          console.log("⏳ Đang chờ phiên mới...");
+      try {
+        const result = await fetchData();
+        
+        // Kiểm tra đúng format API: { success: true, data: { phien, ket_qua, ... } }
+        if (result && result.success === true && result.data && result.data.phien) {
+          const d = result.data;
+          const phien = Number(d.phien);
+          
+          // Chưa có trong database
+          if (!existingSessions.has(phien)) {
+            successCount++;
+            
+            const newRecord = {
+              phien: phien,
+              ket_qua: d.ket_qua,
+              thoi_gian: d.thoi_gian,
+              tong: Number(d.tong),
+              xuc_xac_1: Number(d.xuc_xac_1),
+              xuc_xac_2: Number(d.xuc_xac_2),
+              xuc_xac_3: Number(d.xuc_xac_3),
+              timestamp: Date.now()
+            };
+            
+            // Thêm vào đầu mảng (mới nhất lên đầu)
+            database.push(newRecord);
+            existingSessions.add(phien);
+            
+            // Giới hạn data
+            if (database.length > MAX_DATA) {
+              const removed = database.shift();
+              existingSessions.delete(removed.phien);
+            }
+            
+            // Log mỗi phiên mới
+            console.log(`✅ #${successCount} | Phiên: ${phien} | ${d.ket_qua} | [${d.xuc_xac_1},${d.xuc_xac_2},${d.xuc_xac_3}] | Tổng: ${d.tong} | Total: ${database.length}`);
+            
+            // Lưu data
+            saveData(database);
+          }
         }
-        await new Promise(r => setTimeout(r, FETCH_DELAY));
-        continue;
+      } catch (e) {
+        console.log("❌ Collector lỗi:", e.message);
       }
       
-      const phienNum = Number(phien);
-      
-      // Kiểm tra phiên hợp lệ
-      if (isNaN(phienNum)) {
-        console.log("⚠️ Phiên không hợp lệ:", phien);
-        await new Promise(r => setTimeout(r, FETCH_DELAY));
-        continue;
-      }
-      
-      // Chống trùng
-      if (!existingSessions.has(phienNum)) {
-        const newRecord = {
-          phien: phienNum,
-          md5_hash: d.md5_hash || "",
-          ket_qua: d.ket_qua || "",
-          thoi_gian: d.thoi_gian || new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }),
-          tong: Number(d.tong) || 0,
-          xuc_xac_1: Number(d.xuc_xac_1) || 0,
-          xuc_xac_2: Number(d.xuc_xac_2) || 0,
-          xuc_xac_3: Number(d.xuc_xac_3) || 0,
-          timestamp: Date.now()
-        };
-        
-        database.push(newRecord);
-        existingSessions.add(phienNum);
-        
-        // Giới hạn data
-        if (database.length > MAX_DATA) {
-          const removed = database.shift();
-          existingSessions.delete(removed.phien);
-        }
-        
-        saveData(database);
-        
-        // Log đẹp
-        const xucXac = [newRecord.xuc_xac_1, newRecord.xuc_xac_2, newRecord.xuc_xac_3]
-          .filter(x => x > 0)
-          .join(",");
-        
-        console.log(`✅ [${newRecord.thoi_gian}] Phiên: ${phienNum} | ${newRecord.ket_qua || 'N/A'} | Xúc xắc: [${xucXac || 'N/A'}] | Tổng: ${newRecord.tong || 'N/A'} | Total: ${database.length}`);
-      }
-      
-    } catch (e) {
-      console.log("❌ Collector lỗi:", e.message);
+      isFetching = false;
     }
     
+    // Đợi 100ms trước khi fetch tiếp
     await new Promise(r => setTimeout(r, FETCH_DELAY));
   }
 }
@@ -252,31 +165,23 @@ async function collector() {
 // API ROUTES
 // ======================
 
-// Home - Thông tin server
+// Home
 app.get("/", (req, res) => {
-  const latestRecord = database.length > 0 ? database[database.length - 1] : null;
+  const latest = database.length > 0 ? database[database.length - 1] : null;
   
   res.json({
     status: "running",
     total: database.length,
     max_data: MAX_DATA,
     fetch_delay_ms: FETCH_DELAY,
-    last_update: latestRecord ? latestRecord.thoi_gian : null,
-    last_phien: latestRecord ? latestRecord.phien : null,
-    endpoints: {
-      all_data: "/data",
-      latest: "/latest",
-      limit: "/limit?n=20",
-      search: "/data/:phien",
-      stats: "/stats",
-      clear: "/clear (POST)",
-      health: "/health",
-      test_api: "/test-api"
-    }
+    total_fetches: fetchCount,
+    total_new_records: successCount,
+    latest_phien: latest ? latest.phien : null,
+    latest_time: latest ? latest.thoi_gian : null
   });
 });
 
-// Tất cả dữ liệu
+// Tất cả data (mới nhất cuối)
 app.get("/data", (req, res) => {
   res.json({
     total: database.length,
@@ -284,10 +189,18 @@ app.get("/data", (req, res) => {
   });
 });
 
+// Data mới nhất lên đầu
+app.get("/data/reverse", (req, res) => {
+  res.json({
+    total: database.length,
+    data: [...database].reverse()
+  });
+});
+
 // Phiên mới nhất
 app.get("/latest", (req, res) => {
   if (!database.length) {
-    return res.status(404).json({ error: "Không có dữ liệu" });
+    return res.status(404).json({ error: "Chưa có dữ liệu" });
   }
   res.json(database[database.length - 1]);
 });
@@ -296,28 +209,28 @@ app.get("/latest", (req, res) => {
 app.get("/limit", (req, res) => {
   const limit = Math.min(
     Math.max(Number(req.query.n) || 10, 1),
-    MAX_DATA
+    database.length
   );
 
   res.json({
     limit: limit,
     total: database.length,
-    data: database.slice(-limit)
+    data: database.slice(-limit).reverse()
   });
 });
 
-// Tìm theo số phiên
+// Tìm phiên cụ thể
 app.get("/data/:phien", (req, res) => {
   const phien = Number(req.params.phien);
 
   if (isNaN(phien)) {
-    return res.status(400).json({ error: "Phiên không hợp lệ" });
+    return res.status(400).json({ error: "Số phiên không hợp lệ" });
   }
 
   const found = database.find((i) => i.phien === phien);
 
   if (!found) {
-    return res.status(404).json({ error: "Không tìm thấy phiên " + phien });
+    return res.status(404).json({ error: `Không tìm thấy phiên ${phien}` });
   }
 
   res.json(found);
@@ -332,111 +245,68 @@ app.get("/stats", (req, res) => {
       total: 0,
       tai: 0,
       xiu: 0,
-      ti_le_tai: "0.00%",
-      ti_le_xiu: "0.00%"
+      ti_le_tai: "0%",
+      ti_le_xiu: "0%"
     });
   }
 
   const tai = database.filter((i) => i.ket_qua === "Tài").length;
   const xiu = database.filter((i) => i.ket_qua === "Xỉu").length;
-  
-  // Tính tổng điểm trung bình
-  const tongTrungBinh = database.reduce((sum, i) => sum + (i.tong || 0), 0) / total;
 
   res.json({
     total: total,
     tai: tai,
     xiu: xiu,
-    ti_le_tai: ((tai / total) * 100).toFixed(2) + "%",
-    ti_le_xiu: ((xiu / total) * 100).toFixed(2) + "%",
-    tong_trung_binh: tongTrungBinh.toFixed(2),
+    ti_le_tai: ((tai / total) * 100).toFixed(1) + "%",
+    ti_le_xiu: ((xiu / total) * 100).toFixed(1) + "%",
     phien_moi_nhat: database[total - 1],
     phien_cu_nhat: database[0]
   });
 });
 
-// Xóa dữ liệu
+// Xóa data
 app.post("/clear", (req, res) => {
-  const oldCount = database.length;
+  const oldTotal = database.length;
   database = [];
   existingSessions.clear();
+  successCount = 0;
   forceSave();
   
   res.json({
     success: true,
-    message: `Đã xóa ${oldCount} records`,
-    total: 0
+    message: `Đã xóa ${oldTotal} records`
   });
-});
-
-// Test API
-app.get("/test-api", async (req, res) => {
-  try {
-    const result = await axios.get(API_URL, {
-      timeout: 5000,
-      headers: {
-        "User-Agent": "Mozilla/5.0",
-        "Accept": "application/json"
-      }
-    });
-    
-    const parsedData = parseData(result.data);
-    
-    res.json({
-      status: "success",
-      raw_response: result.data,
-      parsed_data: parsedData,
-      current_database_total: database.length
-    });
-  } catch (e) {
-    res.json({ 
-      error: e.message,
-      current_database_total: database.length
-    });
-  }
 });
 
 // Health check
 app.get("/health", (req, res) => {
   res.json({
     status: "healthy",
-    uptime_seconds: Math.floor(process.uptime()),
+    uptime: Math.floor(process.uptime()),
     memory_mb: (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2),
-    total_records: database.length
+    total_records: database.length,
+    total_fetches: fetchCount
   });
-});
-
-// ======================
-// ERROR HANDLING
-// ======================
-app.use((err, req, res, next) => {
-  console.error("Server error:", err.message);
-  res.status(500).json({ error: "Internal server error" });
 });
 
 // ======================
 // START SERVER
 // ======================
 const server = app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Server running at http://0.0.0.0:${PORT}`);
+  console.log(`\n🚀 Server: http://0.0.0.0:${PORT}`);
+  console.log(`📊 API: ${API_URL}\n`);
   collector();
 });
 
 // Graceful shutdown
 process.on("SIGTERM", () => {
-  console.log("\n🛑 Đang shutdown...");
+  console.log("\n🛑 Shutting down...");
   forceSave();
-  server.close(() => {
-    console.log("✅ Server đã đóng");
-    process.exit(0);
-  });
+  server.close(() => process.exit(0));
 });
 
 process.on("SIGINT", () => {
-  console.log("\n🛑 Đang shutdown...");
+  console.log("\n🛑 Shutting down...");
   forceSave();
-  server.close(() => {
-    console.log("✅ Server đã đóng");
-    process.exit(0);
-  });
+  server.close(() => process.exit(0));
 });

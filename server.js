@@ -5,7 +5,8 @@ const fs = require("fs");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const API_URL = "http://103.249.117.201:49483/sunwin/tx?key=f7fe0e32f71684bd95ec94f59609801364193b297db4d60e";
+// API MỚI
+const API_URL = "https://sunwin-ke-u8wn.onrender.com/sun";
 const DATA_FILE = "data.json";
 const FETCH_DELAY = 100; // 0.1 giây
 const MAX_DATA = 10000;
@@ -20,9 +21,10 @@ let isFetching = false;
 try {
   if (fs.existsSync(DATA_FILE)) {
     const raw = fs.readFileSync(DATA_FILE, "utf8");
-    database = JSON.parse(raw);
-    if (Array.isArray(database)) {
-      existingSessions = new Set(database.map(i => i.phien));
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      database = parsed;
+      existingSessions = new Set(database.map(i => i.Phien));
       console.log(`📂 Loaded ${database.length} records`);
     }
   }
@@ -32,10 +34,21 @@ try {
 }
 
 // ======================
+// SORT: Phien lớn nhất lên đầu
+// ======================
+function sortDatabase() {
+  database.sort((a, b) => b.Phien - a.Phien);
+}
+
+// Sort data hiện có
+sortDatabase();
+
+// ======================
 // SAVE DATA
 // ======================
 function saveData() {
   try {
+    sortDatabase(); // Sort trước khi lưu
     fs.writeFileSync(DATA_FILE, JSON.stringify(database, null, 2), "utf8");
   } catch (e) {
     console.log("Save error:", e.message);
@@ -67,40 +80,47 @@ async function fetchAndSave() {
 
     const data = response.data;
 
-    // Kiểm tra đúng format: {"success":true,"data":{...}}
-    if (data && data.success === true && data.data && data.data.phien) {
-      const d = data.data;
-      const phien = Number(d.phien);
-
-      // Chưa có trong database
-      if (!existingSessions.has(phien)) {
+    // API mới trả về mảng trực tiếp
+    if (Array.isArray(data)) {
+      let newCount = 0;
+      
+      for (const item of data) {
+        const phien = Number(item.Phien);
         
-        // Tạo record đúng format
-        const record = {
-          ket_qua: d.ket_qua,
-          phien: phien,
-          thoi_gian: d.thoi_gian,
-          tong: Number(d.tong),
-          xuc_xac_1: Number(d.xuc_xac_1),
-          xuc_xac_2: Number(d.xuc_xac_2),
-          xuc_xac_3: Number(d.xuc_xac_3)
-        };
+        // Chưa có trong database
+        if (phien && !existingSessions.has(phien)) {
+          
+          // Format mới với key viết hoa
+          const record = {
+            Phien: phien,
+            Xuc_xac_1: Number(item.Xuc_xac_1),
+            Xuc_xac_2: Number(item.Xuc_xac_2),
+            Xuc_xac_3: Number(item.Xuc_xac_3),
+            Tong: Number(item.Tong),
+            Ket_qua: item.Ket_qua
+          };
 
-        database.push(record);
-        existingSessions.add(phien);
-
+          database.push(record);
+          existingSessions.add(phien);
+          newCount++;
+        }
+      }
+      
+      if (newCount > 0) {
+        // Sort lại: Phien lớn nhất lên đầu
+        sortDatabase();
+        
         // Xóa cũ nếu quá MAX_DATA
         while (database.length > MAX_DATA) {
-          const removed = database.shift();
-          existingSessions.delete(removed.phien);
+          const removed = database.pop(); // Xóa cuối (nhỏ nhất)
+          existingSessions.delete(removed.Phien);
         }
-
-        console.log(`✅ Phiên: ${phien} | ${d.ket_qua} | [${d.xuc_xac_1},${d.xuc_xac_2},${d.xuc_xac_3}] | Tổng: ${d.tong} | DB: ${database.length}`);
+        
+        console.log(`✅ Thêm ${newCount} phiên mới | Total: ${database.length} | Mới nhất: ${database[0].Phien}`);
       }
     }
   } catch (e) {
-    // Chỉ log lỗi mỗi 100 lần để tránh spam
-    if (Math.random() < 0.01) {
+    if (Math.random() < 0.05) {
       console.log("❌ Fetch error:", e.message);
     }
   }
@@ -112,50 +132,52 @@ async function fetchAndSave() {
 // ROUTES
 // ======================
 
-// Home - Kiểm tra trạng thái
+// Home
 app.get("/", (req, res) => {
-  const latest = database.length > 0 ? database[database.length - 1] : null;
+  const latest = database.length > 0 ? database[0] : null;
   
   res.json({
     status: "running",
     total: database.length,
-    latest_phien: latest ? latest.phien : null,
-    latest_ket_qua: latest ? latest.ket_qua : null,
-    latest_time: latest ? latest.thoi_gian : null
+    latest_Phien: latest ? latest.Phien : null,
+    latest_Ket_qua: latest ? latest.Ket_qua : null,
+    api: API_URL,
+    sorted_by: "Phien DESC (lớn nhất trên đầu)"
   });
 });
 
-// Tất cả data
+// Tất cả data (đã sort Phien lớn nhất lên đầu)
 app.get("/data", (req, res) => {
   res.json({
     total: database.length,
+    sorted_by: "Phien DESC",
     data: database
   });
 });
 
-// Phiên mới nhất
+// Phiên mới nhất (đầu mảng)
 app.get("/latest", (req, res) => {
   if (database.length === 0) {
     return res.json({ error: "Chưa có dữ liệu" });
   }
-  res.json(database[database.length - 1]);
+  res.json(database[0]);
 });
 
-// Lấy N phiên gần nhất
+// Lấy N phiên mới nhất
 app.get("/limit", (req, res) => {
   const n = Math.min(Number(req.query.n) || 10, database.length);
   
   res.json({
     total: database.length,
     limit: n,
-    data: database.slice(-n).reverse()
+    data: database.slice(0, n) // Lấy từ đầu (mới nhất)
   });
 });
 
 // Tìm phiên cụ thể
 app.get("/data/:phien", (req, res) => {
   const phien = Number(req.params.phien);
-  const found = database.find(i => i.phien === phien);
+  const found = database.find(i => i.Phien === phien);
   
   if (!found) {
     return res.status(404).json({ error: "Không tìm thấy phiên " + phien });
@@ -169,18 +191,20 @@ app.get("/stats", (req, res) => {
   const total = database.length;
   
   if (total === 0) {
-    return res.json({ total: 0, tai: 0, xiu: 0 });
+    return res.json({ total: 0, Tai: 0, Xiu: 0 });
   }
   
-  const tai = database.filter(i => i.ket_qua === "Tài").length;
-  const xiu = database.filter(i => i.ket_qua === "Xỉu").length;
+  const tai = database.filter(i => i.Ket_qua === "Tài").length;
+  const xiu = database.filter(i => i.Ket_qua === "Xỉu").length;
   
   res.json({
     total: total,
-    tai: tai,
-    xiu: xiu,
-    ti_le_tai: ((tai / total) * 100).toFixed(1) + "%",
-    ti_le_xiu: ((xiu / total) * 100).toFixed(1) + "%"
+    Tai: tai,
+    Xiu: xiu,
+    ti_le_Tai: ((tai / total) * 100).toFixed(1) + "%",
+    ti_le_Xiu: ((xiu / total) * 100).toFixed(1) + "%",
+    Phien_moi_nhat: database[0],
+    Phien_cu_nhat: database[database.length - 1]
   });
 });
 
@@ -193,17 +217,38 @@ app.post("/clear", (req, res) => {
   res.json({ success: true, message: "Đã xóa tất cả dữ liệu" });
 });
 
+// Health check
+app.get("/health", (req, res) => {
+  res.json({
+    status: "healthy",
+    total_records: database.length,
+    uptime: Math.floor(process.uptime())
+  });
+});
+
 // ======================
 // START SERVER
 // ======================
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server chạy tại port ${PORT}`);
   console.log(`🔗 API: ${API_URL}`);
-  console.log(`⏱️  Fetch mỗi ${FETCH_DELAY}ms\n`);
+  console.log(`⏱️  Fetch mỗi ${FETCH_DELAY}ms`);
+  console.log(`📊 Sắp xếp: Phien lớn nhất lên đầu\n`);
   
   // Chạy fetch liên tục mỗi 0.1 giây
   setInterval(fetchAndSave, FETCH_DELAY);
   
   // Fetch lần đầu ngay lập tức
   fetchAndSave();
+});
+
+// Graceful shutdown
+process.on("SIGTERM", () => {
+  saveData();
+  process.exit(0);
+});
+
+process.on("SIGINT", () => {
+  saveData();
+  process.exit(0);
 });

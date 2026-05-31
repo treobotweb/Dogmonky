@@ -5,8 +5,8 @@ const fs = require("fs");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// API MỚI
-const API_URL = "https://farm-indicator-rocky-undergraduate.trycloudflare.com/api/tx";
+// API
+const API_URL = "http://103.249.117.201:49483/sunwin/tx?key=f7fe0e32f71684bd95ec94f59609801364193b297db4d60e";
 const DATA_FILE = "data.json";
 const FETCH_DELAY = 100; // 0.1 giây
 const MAX_DATA = 10000;
@@ -31,25 +31,6 @@ try {
 } catch (e) {
   console.log("Load error:", e.message);
   database = [];
-}
-
-// ======================
-// CONVERT KET QUA: T -> Tài, X -> Xỉu
-// ======================
-function convertKetQua(value) {
-  if (!value) return "";
-  
-  // Chuẩn hóa Unicode
-  const clean = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  
-  if (clean === "T" || clean === "Tài" || clean === "Tai" || clean === "tài" || clean === "tai") {
-    return "Tài";
-  }
-  if (clean === "X" || clean === "Xỉu" || clean === "Xiu" || clean === "xỉu" || clean === "xiu") {
-    return "Xỉu";
-  }
-  
-  return value; // Trả về nguyên bản nếu không khớp
 }
 
 // ======================
@@ -96,22 +77,24 @@ async function fetchAndSave() {
       }
     });
 
-    const data = response.data;
+    const result = response.data;
 
-    // API trả về 1 object: { ket_qua, phien, thoi_gian, tong, xuc_xac_1, xuc_xac_2, xuc_xac_3 }
-    if (data && data.phien) {
-      const phien = Number(data.phien);
+    // Format: { success: true, data: { ket_qua, phien, thoi_gian, tong, xuc_xac_1, xuc_xac_2, xuc_xac_3 } }
+    if (result && result.success && result.data && result.data.phien) {
+      const d = result.data;
+      const phien = Number(d.phien);
       
       // Chưa có trong database
       if (phien && !existingSessions.has(phien)) {
         
         const record = {
-          ket_qua: convertKetQua(data.ket_qua), // T -> Tài, X -> Xỉu
+          ket_qua: d.ket_qua,
           phien: phien,
-          tong: Number(data.tong),
-          xuc_xac_1: Number(data.xuc_xac_1),
-          xuc_xac_2: Number(data.xuc_xac_2),
-          xuc_xac_3: Number(data.xuc_xac_3),
+          thoi_gian: d.thoi_gian,
+          tong: Number(d.tong),
+          xuc_xac_1: Number(d.xuc_xac_1),
+          xuc_xac_2: Number(d.xuc_xac_2),
+          xuc_xac_3: Number(d.xuc_xac_3),
           timestamp: Date.now()
         };
 
@@ -127,7 +110,7 @@ async function fetchAndSave() {
           existingSessions.delete(removed.phien);
         }
         
-        console.log(`✅ Phiên: ${phien} | ${record.ket_qua} | [${record.xuc_xac_1},${record.xuc_xac_2},${record.xuc_xac_3}] | Tổng: ${record.tong} | DB: ${database.length}`);
+        console.log(`✅ Phiên: ${phien} | ${d.ket_qua} | [${d.xuc_xac_1},${d.xuc_xac_2},${d.xuc_xac_3}] | Tổng: ${d.tong} | ${d.thoi_gian} | DB: ${database.length}`);
       }
     }
   } catch (e) {
@@ -153,13 +136,13 @@ app.get("/", (req, res) => {
     max_data: MAX_DATA,
     latest_phien: latest ? latest.phien : null,
     latest_ket_qua: latest ? latest.ket_qua : null,
+    latest_time: latest ? latest.thoi_gian : null,
     api: API_URL,
-    sorted_by: "phien DESC (lớn nhất trên đầu)",
-    note: "ket_qua: T -> Tài, X -> Xỉu"
+    sorted_by: "phien DESC (lớn nhất trên đầu)"
   });
 });
 
-// Tất cả data (đã sort phien DESC, bỏ thoi_gian)
+// Tất cả data (đã sort phien DESC)
 app.get("/data", (req, res) => {
   res.json({
     total: database.length,
@@ -248,13 +231,13 @@ app.get("/health", (req, res) => {
 // ======================
 app.listen(PORT, "0.0.0.0", () => {
   console.log("╔══════════════════════════════════════╗");
-  console.log("║   SUNWIN COLLECTOR V5               ║");
+  console.log("║   SUNWIN COLLECTOR V6               ║");
   console.log("╠══════════════════════════════════════╣");
   console.log(`║  Port: ${PORT}                        ║`);
-  console.log(`║  API: trycloudflare.com/api/tx      ║`);
+  console.log(`║  API: 103.249.117.201:49483         ║`);
   console.log(`║  Fetch: ${FETCH_DELAY}ms (0.1 giây)      ║`);
   console.log(`║  Max: ${MAX_DATA} records                ║`);
-  console.log(`║  T/X -> Tài/Xỉu                     ║`);
+  console.log(`║  Sort: phien DESC                   ║`);
   console.log("╚══════════════════════════════════════╝\n");
   
   // Fetch liên tục mỗi 0.1 giây

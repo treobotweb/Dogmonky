@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 const API_URL = "http://103.249.117.201:49483/sunwin/tx?key=f7fe0e32f71684bd95ec94f59609801364193b297db4d60e";
 const DATA_FILE = "data.json";
 const FETCH_DELAY = 100; // 0.1 giây
-const MAX_DATA = 10000;
+const MAX_DATA = 100; // 100 phiên
 
 let database = [];
 let existingSessions = new Set();
@@ -25,7 +25,7 @@ try {
     if (Array.isArray(parsed)) {
       database = parsed;
       existingSessions = new Set(database.map(i => i.phien));
-      console.log(`📂 Loaded ${database.length} records`);
+      console.log(`📂 Loaded ${database.length}/${MAX_DATA} records`);
     }
   }
 } catch (e) {
@@ -104,13 +104,13 @@ async function fetchAndSave() {
         // Sort: phien lớn nhất lên đầu
         sortDatabase();
         
-        // Giới hạn MAX_DATA
+        // Giới hạn 100 phiên - xóa phiên cũ nhất (nhỏ nhất)
         while (database.length > MAX_DATA) {
-          const removed = database.pop();
+          const removed = database.pop(); // Xóa cuối mảng (phien nhỏ nhất)
           existingSessions.delete(removed.phien);
         }
         
-        console.log(`✅ Phiên: ${phien} | ${d.ket_qua} | [${d.xuc_xac_1},${d.xuc_xac_2},${d.xuc_xac_3}] | Tổng: ${d.tong} | ${d.thoi_gian} | DB: ${database.length}`);
+        console.log(`✅ Phiên: ${phien} | ${d.ket_qua} | [${d.xuc_xac_1},${d.xuc_xac_2},${d.xuc_xac_3}] | Tổng: ${d.tong} | DB: ${database.length}/${MAX_DATA}`);
       }
     }
   } catch (e) {
@@ -142,10 +142,11 @@ app.get("/", (req, res) => {
   });
 });
 
-// Tất cả data (đã sort phien DESC)
+// Tất cả 100 phiên (đã sort phien DESC)
 app.get("/data", (req, res) => {
   res.json({
     total: database.length,
+    max_data: MAX_DATA,
     sorted_by: "phien DESC",
     data: database
   });
@@ -195,6 +196,7 @@ app.get("/stats", (req, res) => {
   
   res.json({
     total: total,
+    max_data: MAX_DATA,
     tai: tai,
     xiu: xiu,
     ti_le_tai: ((tai / total) * 100).toFixed(1) + "%",
@@ -222,6 +224,7 @@ app.get("/health", (req, res) => {
   res.json({
     status: "healthy",
     total_records: database.length,
+    max_data: MAX_DATA,
     uptime_seconds: Math.floor(process.uptime())
   });
 });
@@ -231,12 +234,12 @@ app.get("/health", (req, res) => {
 // ======================
 app.listen(PORT, "0.0.0.0", () => {
   console.log("╔══════════════════════════════════════╗");
-  console.log("║   SUNWIN COLLECTOR V6               ║");
+  console.log("║   SUNWIN COLLECTOR - 100 PHIÊN      ║");
   console.log("╠══════════════════════════════════════╣");
   console.log(`║  Port: ${PORT}                        ║`);
   console.log(`║  API: 103.249.117.201:49483         ║`);
   console.log(`║  Fetch: ${FETCH_DELAY}ms (0.1 giây)      ║`);
-  console.log(`║  Max: ${MAX_DATA} records                ║`);
+  console.log(`║  Max: ${MAX_DATA} phiên                    ║`);
   console.log(`║  Sort: phien DESC                   ║`);
   console.log("╚══════════════════════════════════════╝\n");
   

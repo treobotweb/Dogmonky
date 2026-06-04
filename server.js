@@ -5,8 +5,8 @@ const fs = require("fs");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// API
-const API_URL = "http://103.249.117.201:49483/sunwin/tx?key=f7fe0e32f71684bd95ec94f59609801364193b297db4d60e";
+// API MỚI
+const API_URL = "https://refresh-petite-upc-indication.trycloudflare.com";
 const DATA_FILE = "data.json";
 const FETCH_DELAY = 100; // 0.1 giây
 const MAX_DATA = 100; // 100 phiên
@@ -14,6 +14,20 @@ const MAX_DATA = 100; // 100 phiên
 let database = [];
 let existingSessions = new Set();
 let isFetching = false;
+
+// ======================
+// CONVERT: Tai -> Tài, Xiu -> Xỉu
+// ======================
+function convertKetQua(value) {
+  if (!value) return "";
+  
+  const clean = String(value).trim().toLowerCase();
+  
+  if (clean === "tai" || clean === "tài") return "Tài";
+  if (clean === "xiu" || clean === "xỉu") return "Xỉu";
+  
+  return value;
+}
 
 // ======================
 // LOAD DATA
@@ -24,7 +38,7 @@ try {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       database = parsed;
-      existingSessions = new Set(database.map(i => i.phien));
+      existingSessions = new Set(database.map(i => i.Phien));
       console.log(`📂 Loaded ${database.length}/${MAX_DATA} records`);
     }
   }
@@ -34,10 +48,10 @@ try {
 }
 
 // ======================
-// SORT: phien lớn nhất lên đầu
+// SORT: Phien lớn nhất lên đầu
 // ======================
 function sortDatabase() {
-  database.sort((a, b) => b.phien - a.phien);
+  database.sort((a, b) => b.Phien - a.Phien);
 }
 
 sortDatabase();
@@ -77,40 +91,39 @@ async function fetchAndSave() {
       }
     });
 
-    const result = response.data;
+    const data = response.data;
 
-    // Format: { success: true, data: { ket_qua, phien, thoi_gian, tong, xuc_xac_1, xuc_xac_2, xuc_xac_3 } }
-    if (result && result.success && result.data && result.data.phien) {
-      const d = result.data;
-      const phien = Number(d.phien);
+    // API trả về 1 object: { Phien, Xuc_xac_1, Xuc_xac_2, Xuc_xac_3, Tong, Ket_qua }
+    if (data && data.Phien) {
+      const phien = Number(data.Phien);
       
       // Chưa có trong database
       if (phien && !existingSessions.has(phien)) {
         
         const record = {
-          ket_qua: d.ket_qua,
-          phien: phien,
-          thoi_gian: d.thoi_gian,
-          tong: Number(d.tong),
-          xuc_xac_1: Number(d.xuc_xac_1),
-          xuc_xac_2: Number(d.xuc_xac_2),
-          xuc_xac_3: Number(d.xuc_xac_3),
+          Phien: phien,
+          Xuc_xac_1: Number(data.Xuc_xac_1),
+          Xuc_xac_2: Number(data.Xuc_xac_2),
+          Xuc_xac_3: Number(data.Xuc_xac_3),
+          Tong: Number(data.Tong),
+          Ket_qua: convertKetQua(data.Ket_qua), // Tai -> Tài, Xiu -> Xỉu
+          id: "@anhkhoidzai102",
           timestamp: Date.now()
         };
 
         database.push(record);
         existingSessions.add(phien);
         
-        // Sort: phien lớn nhất lên đầu
+        // Sort: Phien lớn nhất lên đầu
         sortDatabase();
         
-        // Giới hạn 100 phiên - xóa phiên cũ nhất (nhỏ nhất)
+        // Giới hạn 100 phiên
         while (database.length > MAX_DATA) {
-          const removed = database.pop(); // Xóa cuối mảng (phien nhỏ nhất)
-          existingSessions.delete(removed.phien);
+          const removed = database.pop();
+          existingSessions.delete(removed.Phien);
         }
         
-        console.log(`✅ Phiên: ${phien} | ${d.ket_qua} | [${d.xuc_xac_1},${d.xuc_xac_2},${d.xuc_xac_3}] | Tổng: ${d.tong} | DB: ${database.length}/${MAX_DATA}`);
+        console.log(`✅ Phiên: ${phien} | ${record.Ket_qua} | [${record.Xuc_xac_1},${record.Xuc_xac_2},${record.Xuc_xac_3}] | Tổng: ${record.Tong} | id:${record.id} | DB: ${database.length}/${MAX_DATA}`);
       }
     }
   } catch (e) {
@@ -134,20 +147,20 @@ app.get("/", (req, res) => {
     status: "running",
     total: database.length,
     max_data: MAX_DATA,
-    latest_phien: latest ? latest.phien : null,
-    latest_ket_qua: latest ? latest.ket_qua : null,
-    latest_time: latest ? latest.thoi_gian : null,
+    latest_Phien: latest ? latest.Phien : null,
+    latest_Ket_qua: latest ? latest.Ket_qua : null,
     api: API_URL,
-    sorted_by: "phien DESC (lớn nhất trên đầu)"
+    sorted_by: "Phien DESC (lớn nhất trên đầu)",
+    id: "@anhkhoidzai102"
   });
 });
 
-// Tất cả 100 phiên (đã sort phien DESC)
+// Tất cả 100 phiên (đã sort Phien DESC)
 app.get("/data", (req, res) => {
   res.json({
     total: database.length,
     max_data: MAX_DATA,
-    sorted_by: "phien DESC",
+    sorted_by: "Phien DESC",
     data: database
   });
 });
@@ -174,7 +187,7 @@ app.get("/limit", (req, res) => {
 // Tìm phiên
 app.get("/data/:phien", (req, res) => {
   const phien = Number(req.params.phien);
-  const found = database.find(i => i.phien === phien);
+  const found = database.find(i => i.Phien === phien);
   
   if (!found) {
     return res.status(404).json({ error: "Không tìm thấy phiên " + phien });
@@ -188,21 +201,21 @@ app.get("/stats", (req, res) => {
   const total = database.length;
   
   if (total === 0) {
-    return res.json({ total: 0, tai: 0, xiu: 0 });
+    return res.json({ total: 0, Tai: 0, Xiu: 0 });
   }
   
-  const tai = database.filter(i => i.ket_qua === "Tài").length;
-  const xiu = database.filter(i => i.ket_qua === "Xỉu").length;
+  const tai = database.filter(i => i.Ket_qua === "Tài").length;
+  const xiu = database.filter(i => i.Ket_qua === "Xỉu").length;
   
   res.json({
     total: total,
     max_data: MAX_DATA,
-    tai: tai,
-    xiu: xiu,
-    ti_le_tai: ((tai / total) * 100).toFixed(1) + "%",
-    ti_le_xiu: ((xiu / total) * 100).toFixed(1) + "%",
-    phien_moi_nhat: database[0],
-    phien_cu_nhat: database[database.length - 1]
+    Tai: tai,
+    Xiu: xiu,
+    ti_le_Tai: ((tai / total) * 100).toFixed(1) + "%",
+    ti_le_Xiu: ((xiu / total) * 100).toFixed(1) + "%",
+    Phien_moi_nhat: database[0],
+    Phien_cu_nhat: database[database.length - 1]
   });
 });
 
@@ -237,10 +250,11 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log("║   SUNWIN COLLECTOR - 100 PHIÊN      ║");
   console.log("╠══════════════════════════════════════╣");
   console.log(`║  Port: ${PORT}                        ║`);
-  console.log(`║  API: 103.249.117.201:49483         ║`);
+  console.log(`║  API: trycloudflare.com             ║`);
   console.log(`║  Fetch: ${FETCH_DELAY}ms (0.1 giây)      ║`);
   console.log(`║  Max: ${MAX_DATA} phiên                    ║`);
-  console.log(`║  Sort: phien DESC                   ║`);
+  console.log(`║  id: @anhkhoidzai102                ║`);
+  console.log(`║  Tai/Xiu -> Tài/Xỉu                 ║`);
   console.log("╚══════════════════════════════════════╝\n");
   
   // Fetch liên tục mỗi 0.1 giây

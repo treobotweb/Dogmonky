@@ -1,286 +1,373 @@
-// By Sunwin Anh Khôi
+// Sunwin collector — fetch trực tiếp từ API nguồn được cấu hình
 "use strict";
 
 const express = require("express");
-const axios   = require("axios");
-const fs      = require("fs");
+const axios = require("axios");
+const fs = require("fs");
+const path = require("path");
 
 const app = express();
 
-// ======================
-// CONFIG
-// ======================
-const PORT        = process.env.PORT || 3000;
-const API_URL     = "https://kwinstore.com/sunwin/tx/history/40a96e18be563af6deafeb77a7121433cd7754db0113d821";
-const DATA_FILE   = "data.json";
-const MAX_DATA    = 10000;      // giới hạn 10k phiên
-const INIT_FETCH  = 200;        // tải sẵn 200 phiên khi khởi động
-const POLL_DELAY  = 5000;       // 5s poll định kỳ
-const INIT_DELAY  = 400;        // delay giữa mỗi lần fetch khi init
-const SAVE_DEBOUNCE = 2000;     // debounce ghi file (ms)
+const PORT = Number(process.env.PORT || 3000);
 
-// ======================
-// STORAGE – compact JSON
-// ======================
+// QUAN TRỌNG:
+// Có thể đổi API nguồn mà không sửa code:
+// SOURCE_API_URL="https://.../sunwin/tx/history/..."
+const SOURCE_API_URL =
+  process.env.SOURCE_API_URL ||
+  "https://kwinstore.com/sunwin/tx/history/40a96e18be563af6deafeb77a7121433cd7754db0113d821";
+
+const DATA_FILE = path.resolve(process.env.DATA_FILE || "./data.json");
+const MAX_DATA = Math.max(100, Number(process.env.MAX_DATA || 10000));
+const POLL_MS = Math.max(500, Number(process.env.POLL_MS || 1000));
+const REQUEST_TIMEOUT_MS = Math.max(2000, Number(process.env.REQUEST_TIMEOUT_MS || 8000));
+const SAVE_DELAY = Math.max(250, Number(process.env.SAVE_DELAY || 3000));
+
+const http = axios.create({
+  timeout: REQUEST_TIMEOUT_MS,
+  headers: {
+    "User-Agent": "SunwinCollector/2.0",
+    Accept: "application/json, text/plain, */*"
+  },
+  validateStatus: status => status >= 200 && status < 300
+});
+
+// ------------------------------------------------------------
+// DATABASE
+// ------------------------------------------------------------
 function loadData() {
   try {
-    if (fs.existsSync(DATA_FILE)) {
-      const raw = fs.readFileSync(DATA_FILE, "utf8");
-      return JSON.parse(raw);
-    }
-  } catch (e) {
-    console.error("[Load] lỗi:", e.message);
+    if (!fs.existsSync(DATA_FILE)) return [];
+    const parsed = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(r => Number.isFinite(Number(r?.phien)) && Number(r.phien) > 0);
+  } catch (err) {
+    console.error("[Load] Không đọc được data.json:", err.message);
+    return [];
   }
-  return [];
 }
 
-// Ghi compact (không space/indent) → tiết kiệm dung lượng tối đa
-let _saveTimer = null;
-function saveData(db) {
-  clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(() => {
-    try {
-      fs.writeFileSync(DATA_FILE, JSON.stringify(db), "utf8");
-    } catch (e) {
-      console.error("[Save] lỗi:", e.message);
-    }
-  }, SAVE_DEBOUNCE);
-}
-
-// ======================
-// MEMORY
-// ======================
 let database = loadData();
-let sessions = new Set(database.map(r => r.phien));
+const sessions = new Set(database.map(r => Number(r.phien)));
 
-// ======================
-// PARSE API – định dạng mới
-// ======================
-// API trả về:
-// { "success": true, "data": { "ket_qua":..., "phien":..., "thoi_gian":...,
-//                              "tong":..., "xuc_xac_1":..., "xuc_xac_2":..., "xuc_xac_3":... } }
-// Hỗ trợ cả trường hợp API trả mảng (history nhiều phiên)
-function parseResponse(raw) {
-  if (!raw) return [];
+let saveTimer = null;
 
-  // Trường hợp mảng (history endpoint trả nhiều phiên)
-  if (raw.success && Array.isArray(raw.data)) {
-    return raw.data.map(toRecord).filter(Boolean);
-  }
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      const tmp = `${DATA_FILE}.tmp`;
+      fs.writeFileSync(tmp, JSON.stringify(database), "utf8");
+      fs.renameSync(tmp, DATA_FILE);
+    } catch (err) {
+      console.error("[Save] Lỗi ghi dữ liệu:", err.message);
+    }
+  }, SAVE_DELAY);
+}
 
-  // Trường hợp object đơn
-  if (raw.success && raw.data && typeof raw.data === "object") {
-    const r = toRecord(raw.data);
-    return r ? [r] : [];
-  }
+// ------------------------------------------------------------
+// NORMALIZE API RESPONSE
+// Hỗ trợ:
+//   { code: 200, data: [...] }
+//   { status: "OK", data: [...] }
+//   { data: { data: [...] } }
+//   [...] 
+// ------------------------------------------------------------
+function extractItems(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (!raw || typeof raw !== "object") return [];
+
+  if (Array.isArray(raw.data)) return raw.data;
+  if (raw.data && Array.isArray(raw.data.data)) return raw.data.data;
+  if (Array.isArray(raw.result)) return raw.result;
+  if (raw.result && Array.isArray(raw.result.data)) return raw.result.data;
 
   return [];
 }
 
-function toRecord(d) {
-  if (!d || d.phien == null) return null;
-  return {
-    phien:     Number(d.phien),
-    xuc_xac_1: d.xuc_xac_1,
-    xuc_xac_2: d.xuc_xac_2,
-    xuc_xac_3: d.xuc_xac_3,
-    tong:      d.tong,
-    ket_qua:   d.ket_qua,
-    thoi_gian: d.thoi_gian || ""
-  };
-}
-
-// ======================
-// FETCH API
-// ======================
-async function fetchAPI() {
-  try {
-    const res = await axios.get(API_URL, {
-      timeout: 10000,
-      headers: { "User-Agent": "Mozilla/5.0" }
-    });
-    return res.data;
-  } catch (e) {
-    console.error("[Fetch] lỗi:", e.message);
-    return null;
+function firstDefined(obj, keys) {
+  for (const key of keys) {
+    if (obj && obj[key] !== undefined && obj[key] !== null && obj[key] !== "") {
+      return obj[key];
+    }
   }
+  return undefined;
 }
 
-// ======================
-// THÊM RECORD (dedup + limit)
-// ======================
+function normalizeResult(value) {
+  if (value === undefined || value === null) return "";
+  const s = String(value).trim();
+  if (/^tai$/i.test(s)) return "Tài";
+  if (/^xiu$/i.test(s) || /^xỉu$/i.test(s)) return "Xỉu";
+  return s;
+}
+
+function parseItems(raw) {
+  const items = extractItems(raw);
+  if (!items.length) return [];
+
+  const output = [];
+
+  for (const d of items) {
+    if (!d || typeof d !== "object") continue;
+
+    const phienRaw = firstDefined(d, [
+      "phiên", "phien", "session", "sessionId", "gameId", "id"
+    ]);
+
+    const phien = Number(phienRaw);
+    if (!Number.isSafeInteger(phien) || phien <= 0) continue;
+
+    const d1 = firstDefined(d, ["d1", "dice1", "xuc_xac_1", "xucXac1"]);
+    const d2 = firstDefined(d, ["d2", "dice2", "xuc_xac_2", "xucXac2"]);
+    const d3 = firstDefined(d, ["d3", "dice3", "xuc_xac_3", "xucXac3"]);
+
+    const totalRaw = firstDefined(d, ["tổng", "tong", "total", "sum"]);
+    const resultRaw = firstDefined(d, [
+      "kết quả", "ket_qua", "ketQua", "result", "outcome"
+    ]);
+    const timeRaw = firstDefined(d, [
+      "updatedAt", "updated_at", "thoi_gian", "thoiGian", "time", "createdAt"
+    ]);
+
+    const total = Number(totalRaw);
+    const dice = [d1, d2, d3].map(Number);
+    const validDice = dice.every(n => Number.isInteger(n) && n >= 1 && n <= 6);
+
+    output.push({
+      phien,
+      xuc_xac_1: validDice ? dice[0] : d1,
+      xuc_xac_2: validDice ? dice[1] : d2,
+      xuc_xac_3: validDice ? dice[2] : d3,
+      tong: Number.isFinite(total) ? total : totalRaw,
+      ket_qua: normalizeResult(resultRaw),
+      thoi_gian: timeRaw == null ? "" : String(timeRaw)
+    });
+  }
+
+  // Một phiên chỉ giữ 1 record. Nếu API trả trùng, lấy record cuối.
+  const unique = new Map();
+  for (const rec of output) unique.set(rec.phien, rec);
+
+  return [...unique.values()].sort((a, b) => a.phien - b.phien);
+}
+
+// ------------------------------------------------------------
+// DATABASE INSERT
+// ------------------------------------------------------------
 function addRecord(rec) {
-  if (!rec || sessions.has(rec.phien)) return false;
+  if (sessions.has(rec.phien)) return false;
 
   database.push(rec);
   sessions.add(rec.phien);
 
-  // Giữ tối đa MAX_DATA phiên (xoá cũ nhất)
   if (database.length > MAX_DATA) {
-    const old = database.shift();
-    sessions.delete(old.phien);
+    database.sort((a, b) => a.phien - b.phien);
+    while (database.length > MAX_DATA) {
+      const old = database.shift();
+      if (old) sessions.delete(old.phien);
+    }
   }
 
   return true;
 }
 
-// ======================
-// INIT – tải sẵn 200 phiên
-// ======================
+// ------------------------------------------------------------
+// FETCH SOURCE API
+// ------------------------------------------------------------
+async function fetchSourceAPI() {
+  const response = await http.get(SOURCE_API_URL);
+  return response.data;
+}
+
+// ------------------------------------------------------------
+// INITIAL SYNC
+// ------------------------------------------------------------
 async function initFetch() {
-  const needed = Math.max(0, INIT_FETCH - database.length);
-  if (needed === 0) {
-    console.log(`[Init] Đã có ${database.length} phiên, bỏ qua init`);
-    return;
+  console.log("[Init] Fetch API nguồn...");
+  console.log(`[Init] SOURCE_API_URL=${SOURCE_API_URL}`);
+
+  try {
+    const raw = await fetchSourceAPI();
+    const items = parseItems(raw);
+
+    if (!items.length) {
+      console.error("[Init] API trả response nhưng không tìm thấy record hợp lệ.");
+      return;
+    }
+
+    let added = 0;
+
+    for (const rec of items) {
+      if (addRecord(rec)) added++;
+    }
+
+    database.sort((a, b) => a.phien - b.phien);
+
+    if (added > 0) scheduleSave();
+
+    console.log(
+      `[Init] API records=${items.length} | added=${added} | total=${database.length}`
+    );
+  } catch (err) {
+    console.error(
+      `[Init] Không fetch được API nguồn: ${err.response?.status || err.code || err.message}`
+    );
   }
+}
 
-  console.log(`[Init] Bắt đầu tải ${needed} phiên...`);
-  let added = 0;
-  let tries = 0;
-  const maxTries = needed * 3; // tránh loop vô tận khi API trùng
+// ------------------------------------------------------------
+// COLLECTOR
+// Không tạo request chồng nhau.
+// ------------------------------------------------------------
+let collecting = false;
+let lastPhien = database.length
+  ? database[database.length - 1].phien
+  : 0;
 
-  while (added < needed && tries < maxTries) {
-    tries++;
-    const raw = await fetchAPI();
-    const records = parseResponse(raw);
+async function collectorTick() {
+  if (collecting) return;
+  collecting = true;
 
-    for (const rec of records) {
+  try {
+    const raw = await fetchSourceAPI();
+    const items = parseItems(raw);
+
+    let added = 0;
+
+    for (const rec of items) {
       if (addRecord(rec)) {
         added++;
-        console.log(`[Init] +${rec.phien} (${added}/${needed})`);
-      }
-    }
 
-    if (added < needed) {
-      await sleep(INIT_DELAY);
-    }
-  }
-
-  saveData(database);
-  console.log(`[Init] Hoàn thành – tổng ${database.length} phiên`);
-}
-
-// ======================
-// COLLECTOR – poll định kỳ
-// ======================
-async function collector() {
-  console.log(`[Collector] Bắt đầu poll mỗi ${POLL_DELAY / 1000}s`);
-
-  while (true) {
-    try {
-      const raw     = await fetchAPI();
-      const records = parseResponse(raw);
-      let   dirty   = false;
-
-      for (const rec of records) {
-        if (addRecord(rec)) {
-          dirty = true;
-          console.log(`[Collector] +${rec.phien} | Total: ${database.length}`);
-        } else {
-          console.log(`[Collector] Trùng ${rec.phien}`);
+        if (rec.phien > lastPhien) {
+          lastPhien = rec.phien;
+          console.log(
+            `[+] Phiên ${rec.phien} | ${rec.ket_qua || "?"} | Tổng DB ${database.length}`
+          );
         }
       }
-
-      if (dirty) saveData(database);
-
-    } catch (e) {
-      console.error("[Collector] lỗi:", e.message);
     }
 
-    await sleep(POLL_DELAY);
+    if (added > 0) {
+      database.sort((a, b) => a.phien - b.phien);
+      scheduleSave();
+    }
+  } catch (err) {
+    const status = err.response?.status;
+    console.error(
+      `[Collector] API error: ${status || err.code || err.message}`
+    );
+  } finally {
+    collecting = false;
   }
 }
 
-// ======================
-// HELPERS
-// ======================
-function sleep(ms) {
-  return new Promise(r => setTimeout(r, ms));
+async function collector() {
+  console.log(`[Collector] Poll mỗi ${POLL_MS}ms`);
+  while (true) {
+    await collectorTick();
+    await new Promise(resolve => setTimeout(resolve, POLL_MS));
+  }
 }
 
-function normalize(str = "") {
-  return str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
-
-// ======================
+// ------------------------------------------------------------
 // ROUTES
-// ======================
-
-// home
+// ------------------------------------------------------------
 app.get("/", (_req, res) => {
   res.json({
-    status:   "running",
-    total:    database.length,
+    status: "running",
+    source: SOURCE_API_URL,
+    total: database.length,
     max_data: MAX_DATA,
-    by:       "By Sunwin Anh Khôi"
+    collector_interval_ms: POLL_MS
   });
 });
 
-// toàn bộ data
 app.get("/data", (_req, res) => {
-  res.json({ total: database.length, data: database });
+  res.json({
+    total: database.length,
+    data: database
+  });
 });
 
-// phiên mới nhất
 app.get("/latest", (_req, res) => {
   if (!database.length) {
     return res.status(404).json({ error: "Không có dữ liệu" });
   }
+
   res.json(database[database.length - 1]);
 });
 
-// n phiên gần nhất  (?n=200)
 app.get("/data/limit", (req, res) => {
-  const limit = Math.max(1, Number(req.query.n) || 10);
+  const requested = Number(req.query.n);
+  const n = Number.isFinite(requested)
+    ? Math.min(MAX_DATA, Math.max(1, Math.floor(requested)))
+    : 10;
+
+  const slice = database.slice(-n);
+
   res.json({
-    total: Math.min(limit, database.length),
-    data:  database.slice(-limit)
+    total: slice.length,
+    data: slice
   });
 });
 
-// tìm theo phiên
 app.get("/data/:phien", (req, res) => {
   const phien = Number(req.params.phien);
-  const found = database.find(i => i.phien === phien);
-  if (!found) {
+
+  if (!Number.isSafeInteger(phien) || phien <= 0) {
+    return res.status(400).json({ error: "Phiên không hợp lệ" });
+  }
+
+  const record = database.find(item => item.phien === phien);
+
+  if (!record) {
     return res.status(404).json({ error: "Không tìm thấy" });
   }
-  res.json(found);
+
+  res.json(record);
 });
 
-// thống kê Tài / Xỉu (hỗ trợ cả chữ hoa/thường)
 app.get("/stats", (_req, res) => {
-  let tai = 0, xiu = 0;
+  let tai = 0;
+  let xiu = 0;
 
-  for (const i of database) {
-    const kq = normalize(i.ket_qua);
-    if (kq.includes("tai"))  tai++;
-    else if (kq.includes("xiu") || kq.includes("xỉu") || kq.includes("xu")) xiu++;
+  for (const r of database) {
+    if (r.ket_qua === "Tài") tai++;
+    else if (r.ket_qua === "Xỉu") xiu++;
   }
 
   const total = database.length;
+
   res.json({
     total,
     tai,
     xiu,
-    ti_le_tai:  total ? ((tai / total) * 100).toFixed(2) : 0,
-    ti_le_xiu:  total ? ((xiu / total) * 100).toFixed(2) : 0
+    ti_le_tai: total ? `${((tai / total) * 100).toFixed(2)}%` : "0%",
+    ti_le_xiu: total ? `${((xiu / total) * 100).toFixed(2)}%` : "0%"
   });
 });
 
-// xoá dữ liệu
 app.post("/clear", (_req, res) => {
   database = [];
   sessions.clear();
-  saveData(database);
-  res.json({ success: true, message: "Đã xóa dữ liệu" });
+  lastPhien = 0;
+  scheduleSave();
+
+  res.json({
+    success: true,
+    message: "Đã xóa dữ liệu local"
+  });
 });
 
-// ======================
+// ------------------------------------------------------------
 // START
-// ======================
+// ------------------------------------------------------------
 app.listen(PORT, "0.0.0.0", async () => {
-  console.log(`[Server] http://0.0.0.0:${PORT} | By Sunwin Anh Khôi`);
-  await initFetch();   // tải 200 phiên trước
-  collector();          // rồi poll liên tục
+  console.log(`[Server] listening on 0.0.0.0:${PORT}`);
+  await initFetch();
+  collector().catch(err => {
+    console.error("[Collector] Fatal:", err);
+    process.exit(1);
+  });
 });

@@ -12,16 +12,16 @@ const app = express();
 // CẤU HÌNH
 // ======================
 const PORT = Number(process.env.PORT) || 3000;
-const API_URL = process.env.SOURCE_API_URL || "https://gossip-marriage-anime-variance.trycloudflare.com/api/tx";
-const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, "data_hitclub.json.gz");
-const MAX_DATA = 100000;
+const API_URL = process.env.SOURCE_API_URL || "https://wtxmd52.tele68.com/v1/txmd5/sessions";
+const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, "data_lc79.json.gz");
+const MAX_DATA = Number.POSITIVE_INFINITY;
 // Lấy dữ liệu từ API gốc mỗi 1s liên tục
 const POLL_MS = Math.max(1000, Number(process.env.POLL_MS) || 1000);
 const SAVE_DELAY = Math.max(3000, Number(process.env.SAVE_DELAY) || 5000);
 const REQUEST_TIMEOUT = 8000;
 const VIETNAM_TZ = "Asia/Ho_Chi_Minh";
-// Đuôi gắn vào ket_qua mỗi phiên
-const CREDIT = " By Dev Anh Khôi";
+// Tên hiển thị ở cuối kết quả sau khi các thông tin khác đã hiển thị.
+const CREDIT = " By Khôi";
 // Chống dọn dữ liệu nhầm khi lỗi mạng thoáng qua:
 // chỉ tự huỷ dữ liệu khi API lỗi liên tục nhiều lần poll liên tiếp.
 const MAX_CONSECUTIVE_ERRORS = 60;
@@ -31,25 +31,7 @@ const CLEAR_SECRET = process.env.CLEAR_SECRET || "";
 // THỜI GIAN VIỆT NAM
 // Lưu dạng: YYYY-MM-DD HH:mm:ss
 // ======================
-function vietnamTime(value) {
-  if (value === null || value === undefined || value === "") return "";
-
-  let date;
-  if (typeof value === "number" || /^\d{10,13}$/.test(String(value))) {
-    const n = Number(value);
-    date = new Date(n < 1e12 ? n * 1000 : n);
-  } else {
-    const text = String(value).trim();
-    date = new Date(text);
-    // Nếu API gửi ISO không có timezone, coi dữ liệu nguồn là UTC để tránh
-    // Render chạy UTC làm lệch giờ khi hiển thị tại Việt Nam.
-    if (!/[zZ]|[+-]\d{2}:?\d{2}$/.test(text) && !Number.isNaN(date.getTime())) {
-      date = new Date(text + "Z");
-    }
-  }
-
-  if (Number.isNaN(date.getTime())) return String(value);
-
+function vietnamNow() {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: VIETNAM_TZ,
     year: "numeric",
@@ -59,7 +41,7 @@ function vietnamTime(value) {
     minute: "2-digit",
     second: "2-digit",
     hourCycle: "h23"
-  }).formatToParts(date);
+  }).formatToParts(new Date());
 
   const p = Object.fromEntries(parts.map(x => [x.type, x.value]));
   return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
@@ -69,12 +51,11 @@ function vietnamTime(value) {
 // KẾT QUẢ
 // API gốc trả "X" = Xỉu, "T" = Tài
 // ======================
-function mapKetQua(raw, current) {
-  let k = String(raw ?? current ?? "").trim();
-  if (k === "X") k = "Xỉu";
-  else if (k === "T") k = "Tài";
-  if (k && !k.endsWith(CREDIT)) k += CREDIT;
-  return k;
+function mapKetQua(raw) {
+  const k = String(raw ?? "").trim().toUpperCase();
+  if (k === "XI" || k === "XỈU" || k === "X") return "Xỉu";
+  if (k === "TAI" || k === "TÀI" || k === "T") return "Tài";
+  return String(raw ?? "").trim();
 }
 
 // ======================
@@ -91,7 +72,7 @@ function loadData() {
       .filter(r => Number.isFinite(Number(r.phien)))
       .map(normalizeRecord)
       .sort((a, b) => b.phien - a.phien)
-      .slice(0, MAX_DATA);
+      ;
   } catch (e) {
     console.error("[Load] Không đọc được database:", e.message);
     return [];
@@ -130,14 +111,17 @@ let maxPhien = database.length ? database[0].phien : 0;
 let minPhien = database.length ? database[database.length - 1].phien : 0;
 
 function normalizeRecord(d) {
+  const dices = Array.isArray(d?.dices) ? d.dices : [];
+
   return {
-    phien: Number(d["phiên"] ?? d.phien ?? d.id),
-    xuc_xac_1: Number(d.d1 ?? d.xuc_xac_1),
-    xuc_xac_2: Number(d.d2 ?? d.xuc_xac_2),
-    xuc_xac_3: Number(d.d3 ?? d.xuc_xac_3),
-    tong: Number(d["tổng"] ?? d.tong ?? d.total),
-    ket_qua: mapKetQua(d["kết quả"] ?? d.ket_qua, d.ket_qua),
-    thoi_gian: vietnamTime(d.updatedAt ?? d.thoi_gian ?? d.time)
+    phien: Number(d?.id),
+    xuc_xac_1: Number(dices[0]),
+    xuc_xac_2: Number(dices[1]),
+    xuc_xac_3: Number(dices[2]),
+    tong: Number(d?.point),
+    ket_qua: mapKetQua(d?.resultTruyenThong) + CREDIT,
+    // API mới không có ngày/giờ: tự đóng dấu thời gian Việt Nam khi phiên được nhận.
+    thoi_gian: vietnamNow()
   };
 }
 
@@ -147,16 +131,28 @@ function normalizeRecord(d) {
 // ======================
 function parseItems(raw) {
   let list = null;
+
   if (Array.isArray(raw)) {
     list = raw;
   } else if (raw && typeof raw === "object") {
-    if (raw.code !== undefined && raw.code !== 200) return [];
-    if (Array.isArray(raw.data)) list = raw.data;
+    if (Array.isArray(raw.sessions)) list = raw.sessions;
+    else if (Array.isArray(raw.data)) list = raw.data;
+    else if (Array.isArray(raw.items)) list = raw.items;
   }
+
   if (!list) return [];
+
   return list
     .map(normalizeRecord)
-    .filter(r => Number.isSafeInteger(r.phien) && r.phien > 0);
+    // API mới: chỉ dùng id làm số phiên, tuyệt đối không dùng _id.
+    .filter(r =>
+      Number.isSafeInteger(r.phien) &&
+      r.phien > 0 &&
+      Number.isFinite(r.tong) &&
+      Number.isFinite(r.xuc_xac_1) &&
+      Number.isFinite(r.xuc_xac_2) &&
+      Number.isFinite(r.xuc_xac_3)
+    );
 }
 
 // ======================
@@ -170,7 +166,6 @@ function addRecord(rec) {
     database.unshift(rec);
   } else if (rec.phien < minPhien) {
     // Đã đủ số phiên tối đa thì phiên cũ hơn không cần giữ.
-    if (database.length >= MAX_DATA) return false;
     database.push(rec);
   } else {
     // Chèn đúng vị trí để vẫn giữ giảm dần nếu API trả dữ liệu lệch thứ tự.
@@ -187,12 +182,6 @@ function addRecord(rec) {
   sessions.add(rec.phien);
   maxPhien = database[0]?.phien || 0;
   minPhien = database[database.length - 1]?.phien || 0;
-
-  if (database.length > MAX_DATA) {
-    const removed = database.pop();
-    if (removed) sessions.delete(removed.phien);
-    minPhien = database[database.length - 1]?.phien || 0;
-  }
 
   return true;
 }
@@ -219,7 +208,7 @@ async function fetchAPI() {
     timeout: REQUEST_TIMEOUT,
     headers: {
       Accept: "application/json",
-      "User-Agent": "Hitclub-Collector/1.0"
+      "User-Agent": "LC79-Collector/1.0"
     },
     validateStatus: status => status >= 200 && status < 300
   });
@@ -234,8 +223,7 @@ async function initFetch() {
   try {
     const items = parseItems(await fetchAPI());
     if (!items.length) {
-      // Nguồn trả về rỗng ngay từ đầu -> coi như không hoạt động.
-      if (database.length) wipeData("API trả danh sách rỗng");
+      console.warn("[Init] API không trả phiên hợp lệ.");
       return;
     }
     let added = 0;
@@ -265,15 +253,15 @@ async function collectOnce() {
     consecutiveErrors = 0;
 
     if (!items.length) {
-      // API còn phản hồi HTTP 200 nhưng không còn dữ liệu -> nguồn đã chết.
-      if (database.length) wipeData("API 200 nhưng data rỗng");
+      // API rỗng tạm thời không được phép xoá lịch sử.
+      console.warn("[Collector] API không trả phiên hợp lệ; giữ nguyên database.");
     } else {
       let dirty = false;
 
       for (const rec of items) {
         if (addRecord(rec)) {
           dirty = true;
-          console.log(`[+] Phiên ${rec.phien} | ${rec.ket_qua} | ${rec.thoi_gian} VN`);
+          console.log(`[+] Phiên ${rec.phien} | Xúc xắc: ${rec.xuc_xac_1},${rec.xuc_xac_2},${rec.xuc_xac_3} | Tổng: ${rec.tong} | ${rec.ket_qua}${CREDIT} | ${rec.thoi_gian} VN`);
         }
       }
 
@@ -299,7 +287,7 @@ async function collectOnce() {
 // ======================
 app.get("/", (_req, res) => {
   res.json({
-    name: "Dữ Liệu Hitclub",
+    name: "Dữ Liệu LC79",
     status: "running",
     total: database.length,
     max_data: MAX_DATA,
@@ -310,7 +298,7 @@ app.get("/", (_req, res) => {
 
 app.get("/data", (_req, res) => {
   res.json({
-    name: "Dữ Liệu Hitclub",
+    name: "Dữ Liệu LC79",
     total: database.length,
     data: database
   });
@@ -369,11 +357,11 @@ app.post("/clear", (req, res) => {
 // ======================
 app.listen(PORT, "0.0.0.0", async () => {
   console.log("========================================");
-  console.log("Dữ Liệu Hitclub");
+  console.log("Dữ Liệu LC79");
   console.log("========================================");
   console.log(`[Server] Port: ${PORT}`);
   console.log(`[Server] Timezone: ${VIETNAM_TZ} (UTC+7)`);
-  console.log(`[Server] Giữ tối đa: ${MAX_DATA.toLocaleString("vi-VN")} phiên`);
+  console.log(`[Server] Giữ toàn bộ số phiên API trả về`);
   console.log(`[Server] Poll: ${POLL_MS}ms`);
   console.log(`[Server] Database: ${DATA_FILE}`);
   console.log("========================================");

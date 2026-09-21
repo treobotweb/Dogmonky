@@ -14,7 +14,7 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const API_URL = process.env.SOURCE_API_URL || "https://wtxmd52.tele68.com/v1/txmd5/sessions";
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, "data_lc79.json.gz");
-const MAX_DATA = Number.POSITIVE_INFINITY;
+const MAX_DATA = 100000;
 // Lấy dữ liệu từ API gốc mỗi 1s liên tục
 const POLL_MS = Math.max(1000, Number(process.env.POLL_MS) || 1000);
 const SAVE_DELAY = Math.max(3000, Number(process.env.SAVE_DELAY) || 5000);
@@ -72,7 +72,7 @@ function loadData() {
       .filter(r => Number.isFinite(Number(r.phien)))
       .map(normalizeRecord)
       .sort((a, b) => b.phien - a.phien)
-      ;
+      .slice(0, MAX_DATA);
   } catch (e) {
     console.error("[Load] Không đọc được database:", e.message);
     return [];
@@ -121,7 +121,7 @@ function normalizeRecord(d) {
     tong: Number(d?.point),
     ket_qua: mapKetQua(d?.resultTruyenThong) + CREDIT,
     // API mới không có ngày/giờ: tự đóng dấu thời gian Việt Nam khi phiên được nhận.
-    thoi_gian: vietnamNow()
+    thoi_gian: d?.thoi_gian || vietnamNow()
   };
 }
 
@@ -135,7 +135,8 @@ function parseItems(raw) {
   if (Array.isArray(raw)) {
     list = raw;
   } else if (raw && typeof raw === "object") {
-    if (Array.isArray(raw.sessions)) list = raw.sessions;
+    if (Array.isArray(raw.list)) list = raw.list;
+    else if (Array.isArray(raw.sessions)) list = raw.sessions;
     else if (Array.isArray(raw.data)) list = raw.data;
     else if (Array.isArray(raw.items)) list = raw.items;
   }
@@ -180,6 +181,11 @@ function addRecord(rec) {
   }
 
   sessions.add(rec.phien);
+  maxPhien = database[0]?.phien || 0;
+  while (database.length > MAX_DATA) {
+    const removed = database.pop();
+    if (removed) sessions.delete(removed.phien);
+  }
   maxPhien = database[0]?.phien || 0;
   minPhien = database[database.length - 1]?.phien || 0;
 

@@ -115,6 +115,8 @@ let minPhien = database.length ? database[database.length - 1].phien : 0;
 
 function normalizeRecord(d) {
   const dices = Array.isArray(d?.dices) ? d.dices : [];
+  const rawResult = String(d?.resultTruyenThong ?? "").trim().toUpperCase();
+  const ketQua = rawResult === "XIU" ? "Xỉu" : rawResult === "TAI" ? "Tài" : "";
 
   return {
     phien: Number(d?.id),
@@ -122,8 +124,8 @@ function normalizeRecord(d) {
     xuc_xac_2: Number(dices[1]),
     xuc_xac_3: Number(dices[2]),
     tong: Number(d?.point),
-    ket_qua: mapKetQua(d?.resultTruyenThong),
-    thoi_gian: vietnamTime(new Date())
+    ket_qua: ketQua ? `${ketQua}${CREDIT}` : "",
+    thoi_gian: vietnamNow()
   };
 }
 
@@ -137,21 +139,32 @@ function parseItems(raw) {
   if (Array.isArray(raw)) {
     list = raw;
   } else if (raw && typeof raw === "object") {
+    // API hiện tại: { list: [...] }
     if (Array.isArray(raw.list)) list = raw.list;
+    // Tương thích thêm các wrapper nếu API thay đổi.
     else if (Array.isArray(raw.data)) list = raw.data;
     else if (Array.isArray(raw.sessions)) list = raw.sessions;
+    else if (Array.isArray(raw.items)) list = raw.items;
   }
 
-  if (!list) return [];
+  if (!Array.isArray(list)) return [];
 
-  return list
-    .map(normalizeRecord)
-    .filter(r =>
-      Number.isSafeInteger(r.phien) &&
-      r.phien > 0 &&
-      [r.xuc_xac_1, r.xuc_xac_2, r.xuc_xac_3, r.tong].every(Number.isFinite) &&
-      r.ket_qua
-    );
+  const result = [];
+  for (const item of list) {
+    const rec = normalizeRecord(item);
+    if (
+      Number.isSafeInteger(rec.phien) &&
+      rec.phien > 0 &&
+      Number.isInteger(rec.xuc_xac_1) && rec.xuc_xac_1 >= 1 && rec.xuc_xac_1 <= 6 &&
+      Number.isInteger(rec.xuc_xac_2) && rec.xuc_xac_2 >= 1 && rec.xuc_xac_2 <= 6 &&
+      Number.isInteger(rec.xuc_xac_3) && rec.xuc_xac_3 >= 1 && rec.xuc_xac_3 <= 6 &&
+      Number.isFinite(rec.tong) &&
+      (rec.ket_qua === "Tài" + CREDIT || rec.ket_qua === "Xỉu" + CREDIT)
+    ) {
+      result.push(rec);
+    }
+  }
+  return result;
 }
 
 // ======================
@@ -211,9 +224,12 @@ async function fetchAPI() {
   const res = await axios.get(API_URL, {
     timeout: REQUEST_TIMEOUT,
     headers: {
-      Accept: "application/json",
-      "User-Agent": "LC79-Collector/1.0"
+      Accept: "application/json, text/plain, */*",
+      "User-Agent": "Mozilla/5.0 (compatible; LC79-Collector/1.0)",
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache"
     },
+    params: { _t: Date.now() },
     validateStatus: status => status >= 200 && status < 300
   });
   return res.data;
@@ -225,7 +241,9 @@ async function fetchAPI() {
 async function initFetch() {
   console.log("[Init] Đang lấy dữ liệu lịch sử từ API gốc...");
   try {
-    const items = parseItems(await fetchAPI());
+    const raw = await fetchAPI();
+    const items = parseItems(raw);
+    lastSourceStatus = { ok: true, fetched_at: vietnamNow(), source_count: items.length, error: "" };
     if (!items.length) {
       console.warn("[Init] API không trả phiên hợp lệ.");
       return;
@@ -237,6 +255,7 @@ async function initFetch() {
     if (added) scheduleSave();
     console.log(`[Init] Nạp ${added} phiên | Đang giữ ${database.length}/${MAX_DATA.toLocaleString("vi-VN")} phiên`);
   } catch (e) {
+    lastSourceStatus = { ok: false, fetched_at: vietnamNow(), source_count: 0, error: e.message };
     console.error("[Init] API lỗi:", e.message);
   }
 }
@@ -248,12 +267,20 @@ async function initFetch() {
 let collectorBusy = false;
 let collectorTimer = null;
 let consecutiveErrors = 0;
+let lastSourceStatus = {
+  ok: false,
+  fetched_at: "",
+  source_count: 0,
+  error: ""
+};
 
 async function collectOnce() {
   if (collectorBusy) return;
   collectorBusy = true;
   try {
-    const items = parseItems(await fetchAPI());
+    const raw = await fetchAPI();
+    const items = parseItems(raw);
+    lastSourceStatus = { ok: true, fetched_at: vietnamNow(), source_count: items.length, error: "" };
     consecutiveErrors = 0;
 
     if (!items.length) {
@@ -273,6 +300,7 @@ async function collectOnce() {
     }
   } catch (e) {
     consecutiveErrors++;
+    lastSourceStatus = { ok: false, fetched_at: vietnamNow(), source_count: 0, error: e.message };
     console.error(`[Collector] API lỗi (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}):`, e.message);
     // Không xoá lịch sử khi nguồn tạm thời lỗi; lần poll sau sẽ thử lại.
   } finally {
@@ -292,6 +320,14 @@ app.get("/", (_req, res) => {
     max_data: MAX_DATA,
     order: "phien giảm dần (lớn → nhỏ)",
     timezone: "Asia/Ho_Chi_Minh (UTC+7)"
+  });
+});
+
+app.get("/source-status", (_req, res) => {
+  res.json({
+    api: API_URL,
+    ...lastSourceStatus,
+    database_total: database.length
   });
 });
 

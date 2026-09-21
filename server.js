@@ -21,7 +21,7 @@ const SAVE_DELAY = Math.max(3000, Number(process.env.SAVE_DELAY) || 5000);
 const REQUEST_TIMEOUT = 8000;
 const VIETNAM_TZ = "Asia/Ho_Chi_Minh";
 // Tên hiển thị ở cuối kết quả sau khi các thông tin khác đã hiển thị.
-const CREDIT = " By Khôi";
+const CREDIT = " developer : By Anh Khôi";
 // Chống dọn dữ liệu nhầm khi lỗi mạng thoáng qua:
 // chỉ tự huỷ dữ liệu khi API lỗi liên tục nhiều lần poll liên tiếp.
 const MAX_CONSECUTIVE_ERRORS = 60;
@@ -51,11 +51,14 @@ function vietnamNow() {
 // KẾT QUẢ
 // API gốc trả "X" = Xỉu, "T" = Tài
 // ======================
-function mapKetQua(raw) {
-  const k = String(raw ?? "").trim().toUpperCase();
-  if (k === "XI" || k === "XỈU" || k === "X") return "Xỉu";
-  if (k === "TAI" || k === "TÀI" || k === "T") return "Tài";
-  return String(raw ?? "").trim();
+function mapKetQua(raw, current) {
+  const value = String(raw ?? current ?? "").trim().toUpperCase();
+
+  let k = value;
+  if (value === "XIU" || value === "X") k = "Xỉu";
+  else if (value === "TAI" || value === "T") k = "Tài";
+
+  return k ? `${k}${CREDIT}` : "";
 }
 
 // ======================
@@ -119,9 +122,8 @@ function normalizeRecord(d) {
     xuc_xac_2: Number(dices[1]),
     xuc_xac_3: Number(dices[2]),
     tong: Number(d?.point),
-    ket_qua: mapKetQua(d?.resultTruyenThong) + CREDIT,
-    // API mới không có ngày/giờ: tự đóng dấu thời gian Việt Nam khi phiên được nhận.
-    thoi_gian: d?.thoi_gian || vietnamNow()
+    ket_qua: mapKetQua(d?.resultTruyenThong),
+    thoi_gian: vietnamTime(new Date())
   };
 }
 
@@ -136,23 +138,19 @@ function parseItems(raw) {
     list = raw;
   } else if (raw && typeof raw === "object") {
     if (Array.isArray(raw.list)) list = raw.list;
-    else if (Array.isArray(raw.sessions)) list = raw.sessions;
     else if (Array.isArray(raw.data)) list = raw.data;
-    else if (Array.isArray(raw.items)) list = raw.items;
+    else if (Array.isArray(raw.sessions)) list = raw.sessions;
   }
 
   if (!list) return [];
 
   return list
     .map(normalizeRecord)
-    // API mới: chỉ dùng id làm số phiên, tuyệt đối không dùng _id.
     .filter(r =>
       Number.isSafeInteger(r.phien) &&
       r.phien > 0 &&
-      Number.isFinite(r.tong) &&
-      Number.isFinite(r.xuc_xac_1) &&
-      Number.isFinite(r.xuc_xac_2) &&
-      Number.isFinite(r.xuc_xac_3)
+      [r.xuc_xac_1, r.xuc_xac_2, r.xuc_xac_3, r.tong].every(Number.isFinite) &&
+      r.ket_qua
     );
 }
 
@@ -276,12 +274,7 @@ async function collectOnce() {
   } catch (e) {
     consecutiveErrors++;
     console.error(`[Collector] API lỗi (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}):`, e.message);
-    // Link chết thật (tunnel gỡ / nguồn tắt) thường lỗi liên tục.
-    // Chỉ tự huỷ sau nhiều lần lỗi liên tiếp để tránh dọn nhầm do lỗi mạng thoáng.
-    if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS && database.length) {
-      wipeData(`API lỗi liên tục ${MAX_CONSECUTIVE_ERRORS} lần`);
-      consecutiveErrors = 0;
-    }
+    // Không xoá lịch sử khi nguồn tạm thời lỗi; lần poll sau sẽ thử lại.
   } finally {
     collectorBusy = false;
     collectorTimer = setTimeout(collectOnce, POLL_MS);

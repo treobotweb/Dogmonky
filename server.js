@@ -12,16 +12,19 @@ const app = express();
 // CẤU HÌNH
 // ======================
 const PORT = Number(process.env.PORT) || 3000;
-const API_URL = process.env.SOURCE_API_URL || "https://kwinstore.com/hitclub/tx/history/149a0d217aba1a2c9fa900e946613b9cb8f36ccecefa000b";
+const API_URL = process.env.SOURCE_API_URL || "https://gossip-marriage-anime-variance.trycloudflare.com/api/tx";
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, "data_hitclub.json.gz");
 const MAX_DATA = 100000;
-const POLL_MS = Math.max(1000, Number(process.env.POLL_MS) || 2000);
+// Lấy dữ liệu từ API gốc mỗi 1s liên tục
+const POLL_MS = Math.max(1000, Number(process.env.POLL_MS) || 1000);
 const SAVE_DELAY = Math.max(3000, Number(process.env.SAVE_DELAY) || 5000);
 const REQUEST_TIMEOUT = 8000;
 const VIETNAM_TZ = "Asia/Ho_Chi_Minh";
+// Đuôi gắn vào ket_qua mỗi phiên
+const CREDIT = " By Dev Anh Khôi";
 // Chống dọn dữ liệu nhầm khi lỗi mạng thoáng qua:
 // chỉ tự huỷ dữ liệu khi API lỗi liên tục nhiều lần poll liên tiếp.
-const MAX_CONSECUTIVE_ERRORS = 30;
+const MAX_CONSECUTIVE_ERRORS = 60;
 const CLEAR_SECRET = process.env.CLEAR_SECRET || "";
 
 // ======================
@@ -60,6 +63,18 @@ function vietnamTime(value) {
 
   const p = Object.fromEntries(parts.map(x => [x.type, x.value]));
   return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
+}
+
+// ======================
+// KẾT QUẢ
+// API gốc trả "X" = Xỉu, "T" = Tài
+// ======================
+function mapKetQua(raw, current) {
+  let k = String(raw ?? current ?? "").trim();
+  if (k === "X") k = "Xỉu";
+  else if (k === "T") k = "Tài";
+  if (k && !k.endsWith(CREDIT)) k += CREDIT;
+  return k;
 }
 
 // ======================
@@ -116,22 +131,30 @@ let minPhien = database.length ? database[database.length - 1].phien : 0;
 
 function normalizeRecord(d) {
   return {
-    phien: Number(d["phiên"] ?? d.phien),
+    phien: Number(d["phiên"] ?? d.phien ?? d.id),
     xuc_xac_1: Number(d.d1 ?? d.xuc_xac_1),
     xuc_xac_2: Number(d.d2 ?? d.xuc_xac_2),
     xuc_xac_3: Number(d.d3 ?? d.xuc_xac_3),
-    tong: Number(d["tổng"] ?? d.tong),
-    ket_qua: String(d["kết quả"] ?? d.ket_qua ?? ""),
-    thoi_gian: vietnamTime(d.updatedAt ?? d.thoi_gian)
+    tong: Number(d["tổng"] ?? d.tong ?? d.total),
+    ket_qua: mapKetQua(d["kết quả"] ?? d.ket_qua, d.ket_qua),
+    thoi_gian: vietnamTime(d.updatedAt ?? d.thoi_gian ?? d.time)
   };
 }
 
 // ======================
 // PARSE API GỐC
+// Hỗ trợ cả dạng [{...}] trần và {code, data: [...]}
 // ======================
 function parseItems(raw) {
-  if (!raw || raw.code !== 200 || !Array.isArray(raw.data)) return [];
-  return raw.data
+  let list = null;
+  if (Array.isArray(raw)) {
+    list = raw;
+  } else if (raw && typeof raw === "object") {
+    if (raw.code !== undefined && raw.code !== 200) return [];
+    if (Array.isArray(raw.data)) list = raw.data;
+  }
+  if (!list) return [];
+  return list
     .map(normalizeRecord)
     .filter(r => Number.isSafeInteger(r.phien) && r.phien > 0);
 }
@@ -228,7 +251,7 @@ async function initFetch() {
 
 // ======================
 // COLLECTOR
-// Poll tuần tự, không tạo request chồng nhau.
+// Poll 1s tuần tự, không tạo request chồng nhau.
 // ======================
 let collectorBusy = false;
 let collectorTimer = null;
@@ -259,7 +282,7 @@ async function collectOnce() {
   } catch (e) {
     consecutiveErrors++;
     console.error(`[Collector] API lỗi (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}):`, e.message);
-    // Link chết thật (token thu hồi / nguồn gỡ) thường lỗi liên tục.
+    // Link chết thật (tunnel gỡ / nguồn tắt) thường lỗi liên tục.
     // Chỉ tự huỷ sau nhiều lần lỗi liên tiếp để tránh dọn nhầm do lỗi mạng thoáng.
     if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS && database.length) {
       wipeData(`API lỗi liên tục ${MAX_CONSECUTIVE_ERRORS} lần`);
@@ -281,8 +304,7 @@ app.get("/", (_req, res) => {
     total: database.length,
     max_data: MAX_DATA,
     order: "phien giảm dần (lớn → nhỏ)",
-    timezone: "Asia/Ho_Chi_Minh (UTC+7)",
-    source: API_URL
+    timezone: "Asia/Ho_Chi_Minh (UTC+7)"
   });
 });
 
@@ -316,8 +338,8 @@ app.get("/stats", (_req, res) => {
   let tai = 0;
   let xiu = 0;
   for (const r of database) {
-    if (r.ket_qua === "Tài") tai++;
-    else if (r.ket_qua === "Xỉu") xiu++;
+    if (r.ket_qua.startsWith("Tài")) tai++;
+    else if (r.ket_qua.startsWith("Xỉu")) xiu++;
   }
   const total = database.length;
   res.json({

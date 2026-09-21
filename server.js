@@ -1,4 +1,3 @@
-// Dữ Liệu Sun Win By Anh Khôi
 "use strict";
 
 const express = require("express");
@@ -13,13 +12,17 @@ const app = express();
 // CẤU HÌNH
 // ======================
 const PORT = Number(process.env.PORT) || 3000;
-const API_URL = process.env.SOURCE_API_URL || "https://kwinstore.com/sunwin/tx/history/40a96e18be563af6deafeb77a7121433cd7754db0113d821";
-const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, "data.json.gz");
-const MAX_DATA = 10000;
+const API_URL = process.env.SOURCE_API_URL || "https://kwinstore.com/hitclub/tx/history/149a0d217aba1a2c9fa900e946613b9cb8f36ccecefa000b";
+const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, "data_hitclub.json.gz");
+const MAX_DATA = 100000;
 const POLL_MS = Math.max(1000, Number(process.env.POLL_MS) || 2000);
 const SAVE_DELAY = Math.max(3000, Number(process.env.SAVE_DELAY) || 5000);
 const REQUEST_TIMEOUT = 8000;
 const VIETNAM_TZ = "Asia/Ho_Chi_Minh";
+// Chống dọn dữ liệu nhầm khi lỗi mạng thoáng qua:
+// chỉ tự huỷ dữ liệu khi API lỗi liên tục nhiều lần poll liên tiếp.
+const MAX_CONSECUTIVE_ERRORS = 30;
+const CLEAR_SECRET = process.env.CLEAR_SECRET || "";
 
 // ======================
 // THỜI GIAN VIỆT NAM
@@ -61,7 +64,7 @@ function vietnamTime(value) {
 
 // ======================
 // LOAD / SAVE - gzip JSON
-// Tiết kiệm dung lượng Render Free nhưng vẫn giữ đủ 10k phiên.
+// gzip level 9 + atomic rename: tối đa số phiên, tối thiểu dung lượng disk.
 // ======================
 function loadData() {
   try {
@@ -143,7 +146,7 @@ function addRecord(rec) {
   if (!database.length || rec.phien > maxPhien) {
     database.unshift(rec);
   } else if (rec.phien < minPhien) {
-    // Đã đủ 10k thì phiên cũ hơn không cần giữ.
+    // Đã đủ số phiên tối đa thì phiên cũ hơn không cần giữ.
     if (database.length >= MAX_DATA) return false;
     database.push(rec);
   } else {
@@ -172,6 +175,20 @@ function addRecord(rec) {
 }
 
 // ======================
+// TỰ HUỶ DỮ LIỆU
+// Khi nguồn API chết / không còn trả dữ liệu: xoá sạch để service
+// về trạng thái trống như chưa từng hoạt động.
+// ======================
+function wipeData(reason) {
+  database = [];
+  sessions.clear();
+  maxPhien = 0;
+  minPhien = 0;
+  console.error(`[Wipe] Nguồn dữ liệu không còn hoạt động (${reason}) - đã tự huỷ toàn bộ dữ liệu.`);
+  saveNow();
+}
+
+// ======================
 // FETCH API GỐC
 // ======================
 async function fetchAPI() {
@@ -179,7 +196,7 @@ async function fetchAPI() {
     timeout: REQUEST_TIMEOUT,
     headers: {
       Accept: "application/json",
-      "User-Agent": "SunWin-Collector/1.0 By Anh Khoi"
+      "User-Agent": "Hitclub-Collector/1.0"
     },
     validateStatus: status => status >= 200 && status < 300
   });
@@ -193,12 +210,17 @@ async function initFetch() {
   console.log("[Init] Đang lấy dữ liệu lịch sử từ API gốc...");
   try {
     const items = parseItems(await fetchAPI());
+    if (!items.length) {
+      // Nguồn trả về rỗng ngay từ đầu -> coi như không hoạt động.
+      if (database.length) wipeData("API trả danh sách rỗng");
+      return;
+    }
     let added = 0;
     for (const rec of items) {
       if (addRecord(rec)) added++;
     }
     if (added) scheduleSave();
-    console.log(`[Init] Nạp ${added} phiên | Đang giữ ${database.length}/10.000 phiên`);
+    console.log(`[Init] Nạp ${added} phiên | Đang giữ ${database.length}/${MAX_DATA.toLocaleString("vi-VN")} phiên`);
   } catch (e) {
     console.error("[Init] API lỗi:", e.message);
   }
@@ -210,24 +232,39 @@ async function initFetch() {
 // ======================
 let collectorBusy = false;
 let collectorTimer = null;
+let consecutiveErrors = 0;
 
 async function collectOnce() {
   if (collectorBusy) return;
   collectorBusy = true;
   try {
     const items = parseItems(await fetchAPI());
-    let dirty = false;
+    consecutiveErrors = 0;
 
-    for (const rec of items) {
-      if (addRecord(rec)) {
-        dirty = true;
-        console.log(`[+] Phiên ${rec.phien} | ${rec.ket_qua} | ${rec.thoi_gian} VN`);
+    if (!items.length) {
+      // API còn phản hồi HTTP 200 nhưng không còn dữ liệu -> nguồn đã chết.
+      if (database.length) wipeData("API 200 nhưng data rỗng");
+    } else {
+      let dirty = false;
+
+      for (const rec of items) {
+        if (addRecord(rec)) {
+          dirty = true;
+          console.log(`[+] Phiên ${rec.phien} | ${rec.ket_qua} | ${rec.thoi_gian} VN`);
+        }
       }
-    }
 
-    if (dirty) scheduleSave();
+      if (dirty) scheduleSave();
+    }
   } catch (e) {
-    console.error("[Collector] API lỗi:", e.message);
+    consecutiveErrors++;
+    console.error(`[Collector] API lỗi (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}):`, e.message);
+    // Link chết thật (token thu hồi / nguồn gỡ) thường lỗi liên tục.
+    // Chỉ tự huỷ sau nhiều lần lỗi liên tiếp để tránh dọn nhầm do lỗi mạng thoáng.
+    if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS && database.length) {
+      wipeData(`API lỗi liên tục ${MAX_CONSECUTIVE_ERRORS} lần`);
+      consecutiveErrors = 0;
+    }
   } finally {
     collectorBusy = false;
     collectorTimer = setTimeout(collectOnce, POLL_MS);
@@ -239,7 +276,7 @@ async function collectOnce() {
 // ======================
 app.get("/", (_req, res) => {
   res.json({
-    name: "Dữ Liệu Sun Win By Anh Khôi",
+    name: "Dữ Liệu Hitclub",
     status: "running",
     total: database.length,
     max_data: MAX_DATA,
@@ -251,7 +288,7 @@ app.get("/", (_req, res) => {
 
 app.get("/data", (_req, res) => {
   res.json({
-    name: "Dữ Liệu Sun Win By Anh Khôi",
+    name: "Dữ Liệu Hitclub",
     total: database.length,
     data: database
   });
@@ -292,7 +329,11 @@ app.get("/stats", (_req, res) => {
   });
 });
 
-app.post("/clear", (_req, res) => {
+app.post("/clear", (req, res) => {
+  // Nếu đặt CLEAR_SECRET thì bắt buộc phải đúng key mới được xoá.
+  if (CLEAR_SECRET && req.query.key !== CLEAR_SECRET) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
   database = [];
   sessions.clear();
   maxPhien = 0;
@@ -306,7 +347,7 @@ app.post("/clear", (_req, res) => {
 // ======================
 app.listen(PORT, "0.0.0.0", async () => {
   console.log("========================================");
-  console.log("Dữ Liệu Sun Win By Anh Khôi");
+  console.log("Dữ Liệu Hitclub");
   console.log("========================================");
   console.log(`[Server] Port: ${PORT}`);
   console.log(`[Server] Timezone: ${VIETNAM_TZ} (UTC+7)`);
